@@ -1054,7 +1054,9 @@ function openModal(id){
       <textarea id="planNotes" placeholder="Action plan notes / follow-up (training class, work order, coaching date)&hellip;" onblur="saveActionNotes('${id}', this.value)">${r.actionPlan&&r.actionPlan.notes||''}</textarea>`;
   }
   html += `</div>
-  <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;" class="no-print">
+  <div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;" class="no-print">
+    <input type="email" id="emailRecipient" placeholder="Send to (email address, comma-separate for several)" style="flex:1;min-width:240px;padding:9px 12px;border:1px solid #d8d0b8;border-radius:3px;font-size:13px;">
+    <button class="btn-line" onclick="emailEval('${id}')">Email Report</button>
     <button class="btn-line" onclick="printEval()">Print Report</button>
   </div>`;
 
@@ -1063,6 +1065,63 @@ function openModal(id){
 }
 function closeModal(){ document.getElementById('modalBg').classList.remove('active'); }
 function printEval(){ window.print(); }
+
+function emailEval(id){
+  const r = allEvals.find(e=>e.id===id);
+  if (!r) return;
+  const to = (document.getElementById('emailRecipient').value || "").trim();
+  const action = actionForScore(r.percent);
+
+  const lines = [];
+  lines.push("MYSTERY SHOPPER REPORT");
+  lines.push(`Outlet: ${r.outlet}`);
+  lines.push(`Date: ${r.date}${r.day ? '  ('+r.day+')' : ''}   Time: ${r.timeIn||'\u2014'} - ${r.timeOut||'\u2014'}`);
+  lines.push(`Shopper: ${r.shopperName||'\u2014'}    Team Member(s): ${r.teamMembers||'\u2014'}    Manager on Duty: ${r.managerOnDuty||'\u2014'}`);
+  lines.push("");
+  lines.push(`OVERALL SCORE: ${r.points}/${r.max}  (${r.percent}%)  \u2014  ${bandLabel(r.actionKey)}`);
+  if (action.guidance) lines.push(`SOP Guidance: ${action.guidance}`);
+  lines.push("");
+  lines.push("SECTION SCORES");
+  (r.sections||[]).forEach(sec=>{
+    lines.push(`- ${sec.name}: ${sec.points}/${sec.max}`);
+  });
+
+  const misses = [];
+  (r.sections||[]).forEach(sec=>{
+    (sec.questions||[]).forEach(q=>{
+      if (q.answer === 'no'){
+        misses.push(`[${sec.name}] ${q.text}${q.note ? '  \u2014 "'+q.note+'"' : ''}`);
+      }
+    });
+  });
+  if (misses.length){
+    lines.push("");
+    lines.push("AREAS NEEDING ATTENTION (marked No):");
+    misses.forEach(m=> lines.push(`- ${m}`));
+  }
+
+  (r.sections||[]).forEach(sec=>{
+    if (sec.comment) { lines.push(""); lines.push(`${sec.name.toUpperCase()} COMMENTS:`); lines.push(sec.comment); }
+  });
+
+  if (r.overallComments){
+    lines.push("");
+    lines.push("OVERALL COMMENTS:");
+    lines.push(r.overallComments);
+  }
+  if (r.actionPlan && r.actionPlan.notes){
+    lines.push("");
+    lines.push("ACTION PLAN NOTES:");
+    lines.push(r.actionPlan.notes);
+  }
+  lines.push("");
+  lines.push("\u2014 Sent from the Pechanga Food Court Mystery Shopper app");
+
+  const body = lines.join("\n");
+  const subject = `Mystery Shopper Report \u2014 ${r.outlet} \u2014 ${r.date} \u2014 ${r.percent}%`;
+  const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailto;
+}
 
 function toggleSigned(id, checked){
   if (!firebaseReady) return;
