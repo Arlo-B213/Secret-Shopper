@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pechanga Food Court | Mystery Shopper</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --navy-950:#0a1220;
+    --navy-900:#0e1a2e;
+    --navy-800:#152741;
+    --navy-700:#1d3457;
+    --navy-600:#2a4a75;
+    --gold-500:#c8a24a;
+    --gold-400:#dab968;
+    --gold-100:#f3e7c9;
+    --cream:#f6f2e9;
+    --ivory:#fbfaf6;
+    --ink:#1b2330;
+    --line:#2a3c58;
+    --green:#3f8f5f;
+    --amber:#c98a2c;
+    --red:#b3453f;
+    --shadow: 0 12px 30px -12px rgba(10,18,32,.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--cream);
+    color: var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Fraunces',serif;}
+  a{color:inherit;}
+
+  /* ---------- Gate ---------- */
+  #gate{
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, #1d3457 0%, transparent 60%),
+      radial-gradient(1000px 500px at 100% 10%, #0e2038 0%, transparent 55%),
+      var(--navy-950);
+    padding:24px;
+  }
+  .gate-card{
+    background:var(--navy-900);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:44px 40px 36px;
+    width:100%;max-width:420px;
+    box-shadow:var(--shadow);
+    position:relative;
+  }
+  .gate-card::before{
+    content:"";
+    position:absolute; inset:10px;
+    border:1px solid rgba(200,162,74,.28);
+    border-radius:2px;
+    pointer-events:none;
+  }
+  .crest{
+    width:46px;height:46px;margin:0 auto 18px;
+    border:1.5px solid var(--gold-500);
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--gold-400); font-family:'Fraunces',serif; font-weight:600; font-size:20px;
+  }
+  .gate-card h1{
+    color:var(--ivory); text-align:center; font-size:24px; font-weight:600; margin:0 0 2px;
+    letter-spacing:.2px;
+  }
+  .gate-sub{
+    text-align:center; color:#8ea3c2; font-size:13px; margin:0 0 30px;
+  }
+  .role-toggle{display:flex; gap:8px; margin-bottom:20px;}
+  .role-toggle button{
+    flex:1; padding:10px 8px; border-radius:3px; border:1px solid var(--line);
+    background:transparent; color:#9fb2cc; font-family:'Inter'; font-size:13px; font-weight:600;
+    cursor:pointer; transition:.15s;
+  }
+  .role-toggle button.active{
+    background:var(--gold-500); color:var(--navy-950); border-color:var(--gold-500);
+  }
+  .gate-card label{display:block; font-size:12px; color:#9fb2cc; margin-bottom:6px; letter-spacing:.3px;}
+  .gate-card input[type=password], .gate-card input[type=text]{
+    width:100%; padding:12px 13px; border-radius:3px; border:1px solid var(--line);
+    background:var(--navy-800); color:var(--ivory); font-size:15px; margin-bottom:16px;
+  }
+  .gate-card input:focus{outline:2px solid var(--gold-500); outline-offset:1px;}
+  .btn-gold{
+    width:100%; padding:13px; border-radius:3px; border:none;
+    background:linear-gradient(180deg,var(--gold-400),var(--gold-500));
+    color:var(--navy-950); font-weight:700; font-size:14px; letter-spacing:.3px;
+    cursor:pointer;
+  }
+  .btn-gold:hover{filter:brightness(1.05);}
+  .gate-error{color:#e6928c; font-size:13px; margin-top:12px; text-align:center; min-height:16px;}
+
+  /* ---------- App shell ---------- */
+  #app{display:none;}
+  header.top{
+    background:var(--navy-900); color:var(--ivory);
+    padding:16px 28px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:3px solid var(--gold-500);
+    position:sticky; top:0; z-index:30;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand .crest{width:34px;height:34px;font-size:15px;margin:0;}
+  .brand-text .t1{font-size:11px; letter-spacing:1.5px; color:var(--gold-400); text-transform:uppercase;}
+  .brand-text .t2{font-family:'Fraunces',serif; font-size:18px; font-weight:600;}
+  nav.tabs{display:flex; gap:4px;}
+  nav.tabs button{
+    background:transparent; border:none; color:#9fb2cc; font-family:'Inter'; font-weight:600;
+    font-size:13.5px; padding:9px 16px; border-radius:3px; cursor:pointer; transition:.15s;
+  }
+  nav.tabs button.active{background:var(--navy-800); color:var(--gold-400);}
+  nav.tabs button:hover:not(.active){color:var(--ivory);}
+  .top-right{display:flex; align-items:center; gap:14px; font-size:12.5px; color:#8ea3c2;}
+  .top-right button{
+    background:transparent; border:1px solid var(--line); color:#9fb2cc; padding:7px 12px;
+    border-radius:3px; font-size:12.5px; cursor:pointer; font-family:'Inter';
+  }
+  .top-right button:hover{border-color:var(--gold-500); color:var(--gold-400);}
+
+  main{max-width:1080px; margin:0 auto; padding:30px 24px 90px;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .panel{
+    background:var(--ivory); border:1px solid #e4ddc9; border-radius:5px;
+    padding:26px 28px; margin-bottom:22px; box-shadow:0 2px 10px rgba(10,18,32,.05);
+  }
+  .panel h2{font-size:19px; margin:0 0 4px; color:var(--navy-900);}
+  .panel .sub{font-size:13px; color:#7a7364; margin:0 0 20px;}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px;}
+  @media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr;}}
+
+  .field label{display:block; font-size:12px; font-weight:600; color:#5a5747; margin-bottom:5px; letter-spacing:.2px;}
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px 12px; border:1px solid #d8d0b8; border-radius:3px;
+    font-family:'Inter'; font-size:14px; background:#fff; color:var(--ink);
+  }
+  .field textarea{resize:vertical; min-height:64px;}
+  .field{margin-bottom:14px;}
+
+  .section-block{border-top:1px solid #eae3cc; padding-top:18px; margin-top:18px;}
+  .section-block:first-of-type{border-top:none; margin-top:0; padding-top:0;}
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px;}
+  .section-head h3{font-size:15.5px; margin:0; color:var(--navy-800);}
+  .section-score{font-size:13px; font-weight:700; color:var(--gold-500); font-family:'Inter';}
+
+  .qrow{
+    display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center;
+    padding:11px 0; border-bottom:1px dashed #e9e2ca;
+  }
+  .qrow:last-child{border-bottom:none;}
+  .qtext{font-size:13.6px; line-height:1.42; color:#332f24;}
+  .qtag{
+    display:inline-block; font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;
+    color:var(--navy-700); background:#eaeef5; border:1px solid #d7dfec; border-radius:20px;
+    padding:1.5px 8px; margin-top:5px;
+  }
+  .answer-btns{display:flex; gap:6px;}
+  .answer-btns button{
+    width:44px; height:32px; border-radius:3px; border:1px solid #d8d0b8; background:#fff;
+    font-size:12px; font-weight:700; cursor:pointer; color:#8a8368;
+  }
+  .answer-btns button.sel-yes{background:var(--green); color:#fff; border-color:var(--green);}
+  .answer-btns button.sel-no{background:var(--red); color:#fff; border-color:var(--red);}
+  .answer-btns button.sel-na{background:#8a8368; color:#fff; border-color:#8a8368;}
+
+  .note-line{margin-top:6px;}
+  .note-line input{
+    width:100%; padding:6px 9px; font-size:12.5px; border:1px solid #e5ddc4; border-radius:3px;
+    background:#fdfbf4;
+  }
+
+  .submit-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:20px;
+    background:var(--navy-900); border-radius:5px; padding:18px 24px; color:var(--ivory);
+    position:sticky; bottom:16px; box-shadow:var(--shadow); margin-top:10px;
+  }
+  .live-score .num{font-family:'Fraunces',serif; font-size:30px; font-weight:600; color:var(--gold-400);}
+  .live-score .lbl{font-size:11px; color:#9fb2cc; text-transform:uppercase; letter-spacing:1px;}
+  .action-pill{
+    font-size:12px; font-weight:700; padding:6px 14px; border-radius:20px;
+  }
+  .pill-green{background:#1c3a2b; color:#8fe0ab;}
+  .pill-amber{background:#3d2f14; color:#f0c876;}
+  .pill-red{background:#3a1a18; color:#f0a49e;}
+
+  /* -------- History / Dashboard -------- */
+  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:22px;}
+  @media(max-width:800px){.stat-row{grid-template-columns:repeat(2,1fr);}}
+  .stat-card{
+    background:var(--ivory); border:1px solid #e4ddc9; border-radius:5px; padding:18px 20px;
+  }
+  .stat-card .k{font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:#8a8368; margin-bottom:6px;}
+  .stat-card .v{font-family:'Fraunces',serif; font-size:26px; color:var(--navy-900); font-weight:600;}
+  .stat-card .v small{font-size:13px; font-weight:500; color:#8a8368; font-family:'Inter';}
+
+  table.evals{width:100%; border-collapse:collapse; font-size:13.5px;}
+  table.evals th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#8a8368;
+    border-bottom:2px solid #e4ddc9; padding:8px 10px;
+  }
+  table.evals td{padding:11px 10px; border-bottom:1px solid #eee6cf; vertical-align:middle;}
+  table.evals tr:hover{background:#faf6ea; cursor:pointer;}
+  .score-chip{
+    display:inline-block; padding:3px 11px; border-radius:20px; font-weight:700; font-size:12.5px;
+  }
+  .chip-green{background:#e4f4e9; color:var(--green);}
+  .chip-amber{background:#faedd6; color:var(--amber);}
+  .chip-red{background:#fbe6e4; color:var(--red);}
+
+  .filters{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
+  .filters select{padding:8px 10px; border-radius:3px; border:1px solid #d8d0b8; font-size:13px; background:#fff;}
+
+  .empty-state{text-align:center; padding:50px 20px; color:#8a8368;}
+  .empty-state .big{font-family:'Fraunces',serif; font-size:19px; color:var(--navy-800); margin-bottom:6px;}
+
+  .chart-wrap{background:var(--ivory); border:1px solid #e4ddc9; border-radius:5px; padding:20px; margin-bottom:22px;}
+  .chart-wrap canvas{max-height:280px;}
+
+  .modal-bg{
+    display:none; position:fixed; inset:0; background:rgba(10,18,32,.55); z-index:50;
+    align-items:flex-start; justify-content:center; overflow:auto; padding:40px 16px;
+  }
+  .modal-bg.active{display:flex;}
+  .modal{
+    background:var(--ivory); border-radius:6px; max-width:760px; width:100%; padding:0;
+    box-shadow:0 30px 60px rgba(0,0,0,.4);
+  }
+  .modal-head{
+    background:var(--navy-900); color:var(--ivory); padding:22px 28px; border-radius:6px 6px 0 0;
+    display:flex; justify-content:space-between; align-items:flex-start;
+  }
+  .modal-body{padding:24px 28px 30px;}
+  .modal-close{background:transparent; border:none; color:#9fb2cc; font-size:22px; cursor:pointer; line-height:1;}
+
+  .rpt-section-title{
+    font-size:12.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--gold-500);
+    font-weight:700; margin:20px 0 8px; border-bottom:1px solid #eae3cc; padding-bottom:6px;
+  }
+  .rpt-q{display:flex; justify-content:space-between; gap:14px; font-size:13px; padding:6px 0; border-bottom:1px dashed #eee6cf;}
+  .rpt-q .a-yes{color:var(--green); font-weight:700;}
+  .rpt-q .a-no{color:var(--red); font-weight:700;}
+  .rpt-q .a-na{color:#999; font-weight:700;}
+  .rpt-note{font-size:12.5px; color:#6a6552; margin-top:2px; padding-left:2px;}
+  .rpt-comment{font-size:13px; color:#4a4636; background:#faf6ea; border-left:3px solid var(--gold-500); padding:10px 14px; margin-top:8px; border-radius:0 3px 3px 0;}
+
+  .action-plan-box{
+    border:1px solid #e4ddc9; border-radius:5px; padding:16px 18px; margin-top:16px; background:#fffdf6;
+  }
+  .action-plan-box label{display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:8px;}
+  .action-plan-box textarea{width:100%; margin-top:8px; padding:8px 10px; border:1px solid #d8d0b8; border-radius:3px; font-size:13px;}
+
+  .btn-line{
+    background:transparent; border:1px solid var(--navy-700); color:var(--navy-800); padding:9px 16px;
+    border-radius:3px; font-weight:600; font-size:13px; cursor:pointer;
+  }
+  .btn-line:hover{background:var(--navy-900); color:#fff;}
+  .btn-navy{
+    background:var(--navy-900); border:1px solid var(--navy-900); color:#fff; padding:10px 20px;
+    border-radius:3px; font-weight:700; font-size:13.5px; cursor:pointer;
+  }
+  .btn-navy:hover{background:var(--navy-700);}
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:var(--navy-900); color:var(--ivory); padding:12px 22px; border-radius:30px;
+    font-size:13.5px; box-shadow:var(--shadow); z-index:80; border:1px solid var(--gold-500);
+  }
+  @media print{
+    header.top,.submit-bar,.filters,nav.tabs,.top-right,.no-print{display:none !important;}
+    body{background:#fff;}
+    .panel{box-shadow:none; border:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ ACCESS GATE ============ -->
+<div id="gate">
+  <div class="gate-card">
+    <div class="crest">P</div>
+    <h1>Mystery Shopper</h1>
+    <p class="gate-sub">Pechanga Food Court &amp; Beverage &mdash; AAA 4 Diamond Standards</p>
+    <div class="role-toggle">
+      <button id="roleEditorBtn" class="active" onclick="setGateRole('editor')">Manager / Shopper</button>
+      <button id="roleViewerBtn" onclick="setGateRole('viewer')">Upper Management</button>
+    </div>
+    <label for="passInput">Passcode</label>
+    <input type="password" id="passInput" placeholder="Enter passcode" onkeydown="if(event.key==='Enter')tryEnter()">
+    <button class="btn-gold" onclick="tryEnter()">Enter</button>
+    <p class="gate-error" id="gateError"></p>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <div class="crest">P</div>
+      <div class="brand-text">
+        <div class="t1">Pechanga Food Court</div>
+        <div class="t2">Mystery Shopper</div>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button id="tabNewBtn" class="active" onclick="showView('new')">New Evaluation</button>
+      <button id="tabHistoryBtn" onclick="showView('history')">History &amp; Trends</button>
+      <button id="tabSkillsBtn" onclick="showView('skills')">Soft Skills Insights</button>
+    </nav>
+    <div class="top-right">
+      <span id="roleLabel"></span>
+      <button onclick="logOut()">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ---------------- NEW EVALUATION VIEW ---------------- -->
+    <div class="view" id="view-new">
+      <div class="panel">
+        <h2>Visit Details</h2>
+        <p class="sub">Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.</p>
+        <div class="grid3">
+          <div class="field">
+            <label>Outlet</label>
+            <select id="f-outlet" onchange="onOutletChange()">
+              <option value="">Select outlet&hellip;</option>
+              <option>Pronto</option>
+              <option>Agave</option>
+              <option>American Classics</option>
+              <option>Pechanga Fried Chicken</option>
+              <option>Caf&eacute; Cocoa's</option>
+              <option>Little Wok</option>
+              <option>Portable Smart Bar</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Visit Date</label>
+            <input type="date" id="f-date">
+          </div>
+          <div class="field">
+            <label>Day</label>
+            <input type="text" id="f-day" placeholder="Auto-fills from date" readonly>
+          </div>
+          <div class="field">
+            <label>Time In</label>
+            <input type="time" id="f-timein">
+          </div>
+          <div class="field">
+            <label>Time Out</label>
+            <input type="time" id="f-timeout">
+          </div>
+          <div class="field">
+            <label>Shopper Name</label>
+            <input type="text" id="f-shopper" placeholder="e.g. Wendy">
+          </div>
+          <div class="field">
+            <label>Team Member(s) Observed</label>
+            <input type="text" id="f-teammembers" placeholder="Names, comma separated">
+          </div>
+          <div class="field">
+            <label>Manager on Duty</label>
+            <input type="text" id="f-manager" placeholder="If observed">
+          </div>
+        </div>
+      </div>
+
+      <div id="sections-container"></div>
+
+      <div class="panel">
+        <h2>Overall Comments</h2>
+        <div class="field">
+          <textarea id="f-overallcomments" placeholder="Narrative summary of the visit, in the tone of the guest experience&hellip;"></textarea>
+        </div>
+      </div>
+
+      <div class="submit-bar">
+        <div class="live-score">
+          <div class="num" id="liveScoreNum">&mdash;</div>
+          <div class="lbl">Live Score</div>
+        </div>
+        <div id="liveActionPill" class="action-pill">Answer questions to calculate</div>
+        <button class="btn-navy" onclick="submitEvaluation()">Save Evaluation</button>
+      </div>
+    </div>
+
+    <!-- ---------------- HISTORY VIEW ---------------- -->
+    <div class="view" id="view-history">
+      <div class="stat-row" id="statRow"></div>
+
+      <div class="chart-wrap">
+        <h3 style="margin:0 0 12px;font-size:15px;color:var(--navy-800);">Score Trend by Outlet</h3>
+        <canvas id="trendChart"></canvas>
+      </div>
+
+      <div class="panel">
+        <div class="filters">
+          <select id="filterOutlet" onchange="renderHistory()">
+            <option value="">All Outlets</option>
+            <option>Pronto</option>
+            <option>Agave</option>
+            <option>American Classics</option>
+            <option>Pechanga Fried Chicken</option>
+            <option>Caf&eacute; Cocoa's</option>
+            <option>Little Wok</option>
+            <option>Portable Smart Bar</option>
+          </select>
+          <select id="filterAction" onchange="renderHistory()">
+            <option value="">All Score Bands</option>
+            <option value="celebrate">100% &mdash; Celebrate</option>
+            <option value="acceptable">92&ndash;99% &mdash; Acceptable</option>
+            <option value="verbal">85&ndash;91% &mdash; Verbal Warning</option>
+            <option value="written">&le;84% &mdash; Written Warning</option>
+          </select>
+        </div>
+        <table class="evals">
+          <thead>
+            <tr><th>Date</th><th>Outlet</th><th>Shopper</th><th>Score</th><th>Band</th><th>Action Plan</th></tr>
+          </thead>
+          <tbody id="historyTbody"></tbody>
+        </table>
+        <div class="empty-state" id="historyEmpty" style="display:none;">
+          <div class="big">No evaluations yet</div>
+          <div>Save your first Mystery Shopper visit from the New Evaluation tab.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------------- SOFT SKILLS INSIGHTS VIEW ---------------- -->
+    <div class="view" id="view-skills">
+      <div class="panel">
+        <h2>Soft Skills Roll-Up</h2>
+        <p class="sub">Every question is tagged to one of the 10 Essential Soft Skills. This shows where coaching effort will move the needle most, across all outlets and evaluations.</p>
+        <div class="chart-wrap" style="margin-top:6px;">
+          <canvas id="skillsChart"></canvas>
+        </div>
+      </div>
+      <div class="panel" id="skillsBreakdownPanel">
+        <h2>Lowest-Performing Skills</h2>
+        <p class="sub">Skills below 92% across all recorded evaluations, worst first.</p>
+        <div id="skillsList"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ---------------- EVALUATION DETAIL MODAL ---------------- -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div style="font-size:11px;letter-spacing:1px;color:var(--gold-400);text-transform:uppercase;" id="modalOutlet"></div>
+        <div style="font-family:'Fraunces',serif;font-size:20px;margin-top:2px;" id="modalTitle"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+/* =========================================================================
+   FIREBASE CONFIG
+   Paste the SAME config object used in your other Soft Skills / Review
+   Tracker tools (Firebase project: soft-skills-f6ae0) so this shares data
+   the same way. Get it from Firebase Console > Project Settings > Your apps.
+   ========================================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCs6_YRPZsGDkb4hUFU4uVvfwyN9gPKUDg",
+  authDomain: "soft-skills-f6ae0.firebaseapp.com",
+  projectId: "soft-skills-f6ae0",
+  storageBucket: "soft-skills-f6ae0.firebasestorage.app",
+  messagingSenderId: "25790648095",
+  appId: "1:25790648095:web:2986f50315072d07302a2a"
+};
+
+/* Passcodes - change these to whatever you use for your other tools */
+const EDITOR_PASSCODE = "pechanga2026";
+const VIEWER_PASSCODE = "viewonly2026";
+
+const COLLECTION = "mysteryShopperEvals";
+
+let db = null;
+let firebaseReady = false;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  firebaseReady = true;
+} catch(e) {
+  console.warn("Firebase not configured yet:", e);
+}
+
+/* =========================================================================
+   SOFT SKILLS TAGS (matches the Top 10 Essential Soft Skills poster/KPI set)
+   ========================================================================= */
+const SKILLS = [
+  "Guest Engagement & Hospitality Mindset",
+  "Communication Clarity",
+  "Adaptability",
+  "Teamwork & Collaboration",
+  "Conflict Resolution",
+  "Time Management",
+  "Attention to Detail",
+  "Positive Attitude & Resilience",
+  "Active Listening",
+  "Professionalism & Appearance"
+];
+
+/* =========================================================================
+   QUESTION BANK
+   Built from AAA 4 Diamond quick-service standards + your prior Mystery
+   Shopper report format. "bar" section only appears for Portable Smart Bar.
+   ========================================================================= */
+const SECTION_TEMPLATE = [
+  {
+    key: "facility",
+    name: "Facility & Cleanliness",
+    questions: [
+      { t: "Signage and menu boards visible, clean, and professional in appearance?", skill: "Attention to Detail" },
+      { t: "Lighting clean and working properly, no missing or burnt-out bulbs?", skill: "Attention to Detail" },
+      { t: "Tables and seating clean, well maintained, and properly bussed?", skill: "Attention to Detail" },
+      { t: "Floors clean and swept throughout; not worn or damaged?", skill: "Attention to Detail" },
+      { t: "Food cases and display cases clean, organized, and properly stocked?", skill: "Attention to Detail" },
+      { t: "Condiment area clean, stocked, and presentable?", skill: "Attention to Detail" },
+      { t: "Trash properly secluded and not overflowing?", skill: "Attention to Detail" },
+      { t: "Registers and service counters clean, tidy, and free of clutter?", skill: "Attention to Detail" },
+      { t: "Is the flow of service (where to order, pay, pick up) easy to understand?", skill: "Communication Clarity" }
+    ]
+  },
+  {
+    key: "speed",
+    name: "Speed of Service & Line Management",
+    questions: [
+      { t: "If a line was present, were waiting guests greeted with a smile and eye contact?", skill: "Active Listening" },
+      { t: "Wait time in line was not longer than 5 minutes?", skill: "Time Management" },
+      { t: "Order was taken and processed efficiently, without unnecessary delay?", skill: "Time Management" },
+      { t: "Food/beverage was delivered within a reasonable and consistent time after ordering?", skill: "Time Management" }
+    ]
+  },
+  {
+    key: "guestservice",
+    name: "Guest Service & Cashier Interaction",
+    questions: [
+      { t: "Guest greeted in a prompt, warm, and genuine manner upon arrival?", skill: "Guest Engagement & Hospitality Mindset" },
+      { t: "Team member was attentive and listened carefully to the guest's request?", skill: "Active Listening" },
+      { t: "Team member spoke clearly and made conversation when time permitted?", skill: "Communication Clarity" },
+      { t: "Team member offered suggestive selling or attempted an upsell where applicable?", skill: "Guest Engagement & Hospitality Mindset" },
+      { t: "Order was repeated back to the guest to ensure accuracy?", skill: "Attention to Detail" },
+      { t: "Quoted amount matched the register/receipt, and a receipt was offered?", skill: "Attention to Detail" },
+      { t: "ID requested for age-restricted, room, or credit card purchases where required?", skill: "Professionalism & Appearance" },
+      { t: "Team member appropriately attired in a clean uniform; hair, hygiene, and name tag visible?", skill: "Professionalism & Appearance" },
+      { t: "Team member displayed alert, positive body language throughout the interaction?", skill: "Positive Attitude & Resilience" },
+      { t: "If a problem or special request came up, was it handled calmly and resolved constructively?", skill: "Conflict Resolution" }
+    ]
+  },
+  {
+    key: "fb",
+    name: "Food & Beverage Quality",
+    questions: [
+      { t: "Food was visually appealing, fresh in appearance, and neatly presented?", skill: "Attention to Detail" },
+      { t: "Food met the description on the menu or as described by the team member?", skill: "Attention to Detail" },
+      { t: "Food and beverages were fresh and flavorful?", skill: "Attention to Detail" },
+      { t: "Items were served at the proper temperature?", skill: "Attention to Detail" },
+      { t: "Item was perceived as a fair value for the price paid?", skill: "Guest Engagement & Hospitality Mindset" }
+    ]
+  },
+  {
+    key: "bar",
+    name: "Bar Service (Portable Smart Bar)",
+    barOnly: true,
+    questions: [
+      { t: "Guest greeted with a smile, eye contact, and pleasant salutation within a reasonable time?", skill: "Guest Engagement & Hospitality Mindset" },
+      { t: "Suggestive selling or upsell of a specific brand attempted?", skill: "Guest Engagement & Hospitality Mindset" },
+      { t: "Proper pour method used (shot glass or jigger, 1.5 oz pours)?", skill: "Attention to Detail" },
+      { t: "Ice scoop used and glassware clean?", skill: "Attention to Detail" },
+      { t: "Cocktail napkin or coaster offered with the drink?", skill: "Attention to Detail" },
+      { t: "ID checked for any guest appearing under the age of 30?", skill: "Professionalism & Appearance" },
+      { t: "Drink served within 5 minutes of the order?", skill: "Time Management" },
+      { t: "Another round proactively suggested as the drink neared empty?", skill: "Guest Engagement & Hospitality Mindset" },
+      { t: "Bartender addressed the guest by name when paying by card or room charge?", skill: "Communication Clarity" },
+      { t: "Bartender appropriately attired, hygiene and name tag visible?", skill: "Professionalism & Appearance" },
+      { t: "Transaction recorded immediately; receipt offered and cash drawer kept closed between sales?", skill: "Professionalism & Appearance" }
+    ]
+  },
+  {
+    key: "team",
+    name: "Teamwork & General Observations",
+    questions: [
+      { t: "Staff cooperated and displayed positive spirit and teamwork?", skill: "Teamwork & Collaboration" },
+      { t: "Staff adapted well to a busy moment, substitution, or unexpected request?", skill: "Adaptability" },
+      { t: "Staff overall projected a friendly and enthusiastic attitude?", skill: "Positive Attitude & Resilience" },
+      { t: "Based on this visit, would you return to and/or recommend this outlet to others?", skill: "Guest Engagement & Hospitality Mindset" }
+    ]
+  }
+];
+
+/* =========================================================================
+   SOP ACTION THRESHOLDS (from F&B - MGMT - 013 Mystery Shopper Guidelines)
+   ========================================================================= */
+function actionForScore(pct){
+  if (pct === null) return { key:"none", label:"Answer questions to calculate", pillClass:"" };
+  if (pct >= 100) return { key:"celebrate", label:"100% \u2014 Celebrate the team", pillClass:"pill-green", chip:"chip-green",
+    guidance:"Perfect score. Recognize the whole area; if individuals stood out, announce at pre-shift and reward (Caught You Caring, preferred shift, desirable section, day off)." };
+  if (pct >= 92) return { key:"acceptable", label:pct.toFixed(0)+"% \u2014 Acceptable, log & sign", pillClass:"pill-green", chip:"chip-green",
+    guidance:"Review the full report with the team, highlighting wins and areas to sharpen. Have team members sign the log to acknowledge." };
+  if (pct >= 85) return { key:"verbal", label:pct.toFixed(0)+"% \u2014 Verbal warning required", pillClass:"pill-amber", chip:"chip-amber",
+    guidance:"Issue a verbal warning to the individuals named in the report. Review details of the visit, and if a whole category scored here, build an action plan (training, work order, purchase request) for the Assistant Director of F&B or Training Manager." };
+  return { key:"written", label:pct.toFixed(0)+"% \u2014 Written warning required", pillClass:"pill-red", chip:"chip-red",
+    guidance:"Unacceptable score \u2014 remedy immediately. Issue a written warning to the individuals named, counsel them, and complete an action plan. Report status to the Assistant Director of F&B and involve the Training Manager as needed." };
+}
+
+/* =========================================================================
+   STATE
+   ========================================================================= */
+let currentRole = null; // 'editor' | 'viewer'
+let currentState = {}; // in-progress evaluation answers
+let allEvals = [];      // cached from Firestore
+let trendChartInstance = null;
+let skillsChartInstance = null;
+let selectedEvalId = null;
+
+/* ---------------- GATE ---------------- */
+let gateRole = "editor";
+function setGateRole(r){
+  gateRole = r;
+  document.getElementById('roleEditorBtn').classList.toggle('active', r==='editor');
+  document.getElementById('roleViewerBtn').classList.toggle('active', r==='viewer');
+}
+function tryEnter(){
+  const val = document.getElementById('passInput').value;
+  const errEl = document.getElementById('gateError');
+  const expected = gateRole === 'editor' ? EDITOR_PASSCODE : VIEWER_PASSCODE;
+  if (val === expected){
+    currentRole = gateRole;
+    errEl.textContent = "";
+    document.getElementById('gate').style.display = "none";
+    document.getElementById('app').style.display = "block";
+    document.getElementById('roleLabel').textContent = currentRole === 'editor' ? 'Manager / Shopper access' : 'Upper Management (view only)';
+    if (currentRole === 'viewer'){
+      document.getElementById('tabNewBtn').style.display = "none";
+      showView('history');
+    } else {
+      showView('new');
+    }
+    initApp();
+  } else {
+    errEl.textContent = "Incorrect passcode. Try again.";
+  }
+}
+function logOut(){
+  currentRole = null;
+  document.getElementById('app').style.display = "none";
+  document.getElementById('gate').style.display = "flex";
+  document.getElementById('passInput').value = "";
+}
+
+/* ---------------- TAB NAV ---------------- */
+function showView(v){
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.getElementById('tabNewBtn').classList.toggle('active', v==='new');
+  document.getElementById('tabHistoryBtn').classList.toggle('active', v==='history');
+  document.getElementById('tabSkillsBtn').classList.toggle('active', v==='skills');
+  if (v === 'history') renderHistory();
+  if (v === 'skills') renderSkillsInsights();
+}
+
+/* ---------------- INIT ---------------- */
+function initApp(){
+  document.getElementById('f-date').addEventListener('change', ()=>{
+    const d = document.getElementById('f-date').value;
+    if(d){
+      const dayName = new Date(d+"T12:00:00").toLocaleDateString('en-US', { weekday:'long' });
+      document.getElementById('f-day').value = dayName;
+    }
+  });
+  buildSections();
+  loadEvaluations();
+}
+
+/* ---------------- BUILD NEW-EVAL SECTIONS ---------------- */
+function buildSections(showBar){
+  currentState = {};
+  const container = document.getElementById('sections-container');
+  container.innerHTML = "";
+  SECTION_TEMPLATE.forEach(section=>{
+    if (section.barOnly && !showBar) return;
+    const panel = document.createElement('div');
+    panel.className = "panel section-block";
+    panel.innerHTML = `
+      <div class="section-head">
+        <h3>${section.name}</h3>
+        <span class="section-score" id="score-${section.key}">0/0</span>
+      </div>
+      <div id="qwrap-${section.key}"></div>
+      <div class="field" style="margin-top:14px;">
+        <label>${section.name} Comments</label>
+        <textarea id="comment-${section.key}" placeholder="Narrative detail for this section&hellip;"></textarea>
+      </div>
+    `;
+    container.appendChild(panel);
+    const qwrap = panel.querySelector(`#qwrap-${section.key}`);
+    section.questions.forEach((q, idx)=>{
+      const qid = `${section.key}-${idx}`;
+      currentState[qid] = { answer: null, skill: q.skill, section: section.key, text: q.t, note: "" };
+      const row = document.createElement('div');
+      row.className = "qrow";
+      row.innerHTML = `
+        <div>
+          <div class="qtext">${q.t}</div>
+          <div class="qtag">${q.skill}</div>
+          <div class="note-line" id="note-wrap-${qid}" style="display:none;">
+            <input type="text" placeholder="What did they say/do? (optional quote or note)" oninput="setNote('${qid}', this.value)">
+          </div>
+        </div>
+        <div class="answer-btns">
+          <button id="btn-${qid}-yes" onclick="setAnswer('${qid}','${section.key}','yes')">Yes</button>
+          <button id="btn-${qid}-no" onclick="setAnswer('${qid}','${section.key}','no')">No</button>
+          <button id="btn-${qid}-na" onclick="setAnswer('${qid}','${section.key}','na')">N/A</button>
+        </div>
+      `;
+      qwrap.appendChild(row);
+    });
+  });
+  recalcLiveScore();
+}
+
+function onOutletChange(){
+  const outlet = document.getElementById('f-outlet').value;
+  buildSections(outlet === "Portable Smart Bar");
+}
+
+function setNote(qid, val){
+  if (currentState[qid]) currentState[qid].note = val;
+}
+
+function setAnswer(qid, sectionKey, val){
+  currentState[qid].answer = val;
+  ["yes","no","na"].forEach(v=>{
+    document.getElementById(`btn-${qid}-${v}`).classList.remove('sel-yes','sel-no','sel-na');
+  });
+  document.getElementById(`btn-${qid}-${val}`).classList.add(val==='yes'?'sel-yes':val==='no'?'sel-no':'sel-na');
+  document.getElementById(`note-wrap-${qid}`).style.display = (val==='no') ? 'block' : 'none';
+  recalcSectionScore(sectionKey);
+  recalcLiveScore();
+}
+
+function recalcSectionScore(sectionKey){
+  let pts=0, max=0;
+  Object.values(currentState).forEach(q=>{
+    if (q.section !== sectionKey) return;
+    if (q.answer === 'na' || q.answer === null) return;
+    max += 1;
+    if (q.answer === 'yes') pts += 1;
+  });
+  const el = document.getElementById(`score-${sectionKey}`);
+  if (el) el.textContent = `${pts}/${max}`;
+}
+
+function recalcLiveScore(){
+  let pts=0, max=0;
+  Object.values(currentState).forEach(q=>{
+    if (q.answer === 'na' || q.answer === null) return;
+    max += 1;
+    if (q.answer === 'yes') pts += 1;
+  });
+  const pct = max > 0 ? (pts/max*100) : null;
+  document.getElementById('liveScoreNum').textContent = pct===null ? '\u2014' : pct.toFixed(0)+'%';
+  const action = actionForScore(pct);
+  const pill = document.getElementById('liveActionPill');
+  pill.className = "action-pill " + (action.pillClass||"");
+  pill.textContent = action.label;
+  return { pts, max, pct, action };
+}
+
+/* ---------------- SUBMIT ---------------- */
+function submitEvaluation(){
+  const outlet = document.getElementById('f-outlet').value;
+  if (!outlet){ toast("Please select an outlet first."); return; }
+  const date = document.getElementById('f-date').value;
+  if (!date){ toast("Please enter a visit date."); return; }
+
+  const { pts, max, pct, action } = recalcLiveScore();
+  if (max === 0){ toast("Answer at least one question before saving."); return; }
+
+  const sections = SECTION_TEMPLATE
+    .filter(s => !s.barOnly || outlet === "Portable Smart Bar")
+    .map(s=>{
+      let spts=0, smax=0;
+      const qs = s.questions.map((q,idx)=>{
+        const qid = `${s.key}-${idx}`;
+        const st = currentState[qid];
+        if (st.answer !== 'na' && st.answer !== null){
+          smax += 1;
+          if (st.answer === 'yes') spts += 1;
+        }
+        return { text: q.t, skill: q.skill, answer: st.answer, note: st.note || "" };
+      });
+      return {
+        key: s.key, name: s.name, points: spts, max: smax,
+        comment: document.getElementById(`comment-${s.key}`).value || "",
+        questions: qs
+      };
+    });
+
+  const record = {
+    outlet,
+    date,
+    day: document.getElementById('f-day').value,
+    timeIn: document.getElementById('f-timein').value,
+    timeOut: document.getElementById('f-timeout').value,
+    shopperName: document.getElementById('f-shopper').value,
+    teamMembers: document.getElementById('f-teammembers').value,
+    managerOnDuty: document.getElementById('f-manager').value,
+    overallComments: document.getElementById('f-overallcomments').value,
+    points: pts,
+    max: max,
+    percent: Math.round(pct*10)/10,
+    actionKey: action.key,
+    sections,
+    actionPlan: { signed: false, signedDate: "", notes: "" },
+    createdAt: Date.now()
+  };
+
+  if (!firebaseReady){
+    toast("Firebase isn't configured yet \u2014 paste your project config in the code to save.");
+    return;
+  }
+  db.collection(COLLECTION).add(record).then(()=>{
+    toast("Evaluation saved.");
+    resetForm();
+    loadEvaluations();
+  }).catch(err=>{
+    console.error(err);
+    toast("Couldn't save \u2014 check your Firebase config.");
+  });
+}
+
+function resetForm(){
+  document.getElementById('f-outlet').value = "";
+  document.getElementById('f-date').value = "";
+  document.getElementById('f-day').value = "";
+  document.getElementById('f-timein').value = "";
+  document.getElementById('f-timeout').value = "";
+  document.getElementById('f-shopper').value = "";
+  document.getElementById('f-teammembers').value = "";
+  document.getElementById('f-manager').value = "";
+  document.getElementById('f-overallcomments').value = "";
+  buildSections(false);
+}
+
+/* ---------------- LOAD / HISTORY ---------------- */
+function loadEvaluations(){
+  if (!firebaseReady){
+    renderHistory();
+    renderSkillsInsights();
+    return;
+  }
+  db.collection(COLLECTION).orderBy("createdAt","desc").onSnapshot(snap=>{
+    allEvals = [];
+    snap.forEach(doc=> allEvals.push({ id: doc.id, ...doc.data() }));
+    renderHistory();
+    renderSkillsInsights();
+  }, err=>{
+    console.error(err);
+  });
+}
+
+function renderHistory(){
+  const outletFilter = document.getElementById('filterOutlet') ? document.getElementById('filterOutlet').value : "";
+  const actionFilter = document.getElementById('filterAction') ? document.getElementById('filterAction').value : "";
+  let rows = allEvals.slice();
+  if (outletFilter) rows = rows.filter(r=>r.outlet===outletFilter);
+  if (actionFilter) rows = rows.filter(r=>r.actionKey===actionFilter);
+
+  // Stat cards
+  const statRow = document.getElementById('statRow');
+  const total = allEvals.length;
+  const avg = total ? (allEvals.reduce((a,r)=>a+r.percent,0)/total) : 0;
+  const needsAction = allEvals.filter(r=>r.actionKey==='verbal'||r.actionKey==='written').length;
+  const unsigned = allEvals.filter(r=> (r.actionKey==='verbal'||r.actionKey==='written'||r.actionKey==='acceptable') && !(r.actionPlan&&r.actionPlan.signed)).length;
+  statRow.innerHTML = `
+    <div class="stat-card"><div class="k">Total Evaluations</div><div class="v">${total}</div></div>
+    <div class="stat-card"><div class="k">Average Score</div><div class="v">${total? avg.toFixed(1):'0'}<small>%</small></div></div>
+    <div class="stat-card"><div class="k">Needing Action</div><div class="v">${needsAction}</div></div>
+    <div class="stat-card"><div class="k">Pending Sign-Off</div><div class="v">${unsigned}</div></div>
+  `;
+
+  const tbody = document.getElementById('historyTbody');
+  const emptyEl = document.getElementById('historyEmpty');
+  tbody.innerHTML = "";
+  if (rows.length === 0){
+    emptyEl.style.display = "block";
+  } else {
+    emptyEl.style.display = "none";
+    rows.forEach(r=>{
+      const action = actionForScore(r.percent);
+      const tr = document.createElement('tr');
+      tr.onclick = ()=>openModal(r.id);
+      const signedText = r.actionKey==='celebrate' ? '&mdash;' : (r.actionPlan && r.actionPlan.signed ? 'Signed' : 'Pending');
+      tr.innerHTML = `
+        <td>${r.date||''}</td>
+        <td>${r.outlet||''}</td>
+        <td>${r.shopperName||'&mdash;'}</td>
+        <td><span class="score-chip ${action.chip}">${r.percent}%</span></td>
+        <td>${bandLabel(r.actionKey)}</td>
+        <td>${signedText}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  renderTrendChart(rows);
+}
+
+function bandLabel(key){
+  return { celebrate:"Celebrate", acceptable:"Acceptable", verbal:"Verbal Warning", written:"Written Warning" }[key] || "";
+}
+
+function renderTrendChart(rows){
+  const ctx = document.getElementById('trendChart');
+  if (!ctx) return;
+  const outlets = [...new Set(allEvals.map(r=>r.outlet))];
+  const palette = ["#c8a24a","#1d3457","#3f8f5f","#b3453f","#8a5fb0","#2a4a75","#c98a2c"];
+  const datasets = outlets.map((o,i)=>{
+    const pts = allEvals.filter(r=>r.outlet===o).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    return {
+      label:o,
+      data: pts.map(p=>({x:p.date, y:p.percent})),
+      borderColor: palette[i%palette.length],
+      backgroundColor: palette[i%palette.length],
+      tension:.25, spanGaps:true
+    };
+  });
+  if (trendChartInstance) trendChartInstance.destroy();
+  trendChartInstance = new Chart(ctx, {
+    type:'line',
+    data:{ datasets },
+    options:{
+      responsive:true,
+      scales:{
+        x:{ type:'time', time:{ unit:'day' }, title:{display:false} },
+        y:{ min:0, max:100, title:{display:true,text:'Score %'} }
+      },
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:11} } } }
+    }
+  });
+}
+
+/* ---------------- SOFT SKILLS INSIGHTS ---------------- */
+function renderSkillsInsights(){
+  const ctx = document.getElementById('skillsChart');
+  if (!ctx) return;
+  const tally = {};
+  SKILLS.forEach(s=> tally[s] = { pts:0, max:0 });
+  allEvals.forEach(ev=>{
+    (ev.sections||[]).forEach(sec=>{
+      (sec.questions||[]).forEach(q=>{
+        if (q.answer==='na' || q.answer===null || q.answer===undefined) return;
+        if (!tally[q.skill]) tally[q.skill] = { pts:0, max:0 };
+        tally[q.skill].max += 1;
+        if (q.answer === 'yes') tally[q.skill].pts += 1;
+      });
+    });
+  });
+  const labels = SKILLS;
+  const data = labels.map(s=> tally[s].max ? Math.round(tally[s].pts/tally[s].max*1000)/10 : null);
+
+  if (skillsChartInstance) skillsChartInstance.destroy();
+  skillsChartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'Score %',
+        data,
+        backgroundColor: data.map(v=> v===null ? '#ddd' : v>=92 ? '#3f8f5f' : v>=85 ? '#c98a2c' : '#b3453f'),
+        borderRadius:3
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      scales:{ x:{ min:0, max:100 } },
+      plugins:{ legend:{ display:false } }
+    }
+  });
+
+  const list = document.getElementById('skillsList');
+  const ranked = labels
+    .map(s=>({ skill:s, pct: tally[s].max ? tally[s].pts/tally[s].max*100 : null }))
+    .filter(x=> x.pct !== null && x.pct < 92)
+    .sort((a,b)=>a.pct-b.pct);
+  if (ranked.length === 0){
+    list.innerHTML = `<p style="color:#8a8368;font-size:13.5px;">No skill is currently averaging below 92% \u2014 nice work. Keep collecting evaluations to track this over time.</p>`;
+  } else {
+    list.innerHTML = ranked.map(r=>{
+      const action = actionForScore(r.pct);
+      return `<div class="qrow"><div class="qtext"><strong>${r.skill}</strong></div><span class="score-chip ${action.chip}">${r.pct.toFixed(0)}%</span></div>`;
+    }).join("");
+  }
+}
+
+/* ---------------- MODAL / DETAIL / PRINT ---------------- */
+function openModal(id){
+  const r = allEvals.find(e=>e.id===id);
+  if (!r) return;
+  selectedEvalId = id;
+  document.getElementById('modalOutlet').textContent = r.outlet;
+  document.getElementById('modalTitle').textContent = `${r.date}  \u2014  ${r.percent}%`;
+  const action = actionForScore(r.percent);
+
+  let html = `<div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:#6a6552;margin-bottom:4px;">
+    <div>Shopper: <strong style="color:var(--ink)">${r.shopperName||'\u2014'}</strong></div>
+    <div>Team: <strong style="color:var(--ink)">${r.teamMembers||'\u2014'}</strong></div>
+    <div>Manager on duty: <strong style="color:var(--ink)">${r.managerOnDuty||'\u2014'}</strong></div>
+    <div>Time: <strong style="color:var(--ink)">${r.timeIn||'\u2014'} \u2013 ${r.timeOut||'\u2014'}</strong></div>
+  </div>`;
+
+  (r.sections||[]).forEach(sec=>{
+    html += `<div class="rpt-section-title">${sec.name} \u2014 ${sec.points}/${sec.max}</div>`;
+    sec.questions.forEach(q=>{
+      const ans = q.answer;
+      const aClass = ans==='yes'?'a-yes':ans==='no'?'a-no':'a-na';
+      const aText = ans==='yes'?'Yes':ans==='no'?'No':'N/A';
+      html += `<div class="rpt-q"><span>${q.text} <span class="qtag" style="margin-left:6px;">${q.skill}</span></span><span class="${aClass}">${aText}</span></div>`;
+      if (q.note) html += `<div class="rpt-note">&ldquo;${q.note}&rdquo;</div>`;
+    });
+    if (sec.comment) html += `<div class="rpt-comment">${sec.comment}</div>`;
+  });
+
+  if (r.overallComments) html += `<div class="rpt-section-title">Overall Comments</div><div class="rpt-comment">${r.overallComments}</div>`;
+
+  html += `<div class="action-plan-box">
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:4px;">SOP Guidance &mdash; ${action.label}</div>
+    <div style="font-size:12.5px;color:#5a5747;margin-bottom:10px;">${action.guidance||''}</div>`;
+
+  if (r.actionKey !== 'celebrate'){
+    html += `<label><input type="checkbox" id="signCheck" ${r.actionPlan&&r.actionPlan.signed?'checked':''} onchange="toggleSigned('${id}', this.checked)"> Reviewed & signed by team member(s) named above</label>
+      <textarea id="planNotes" placeholder="Action plan notes / follow-up (training class, work order, coaching date)&hellip;" onblur="saveActionNotes('${id}', this.value)">${r.actionPlan&&r.actionPlan.notes||''}</textarea>`;
+  }
+  html += `</div>
+  <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;" class="no-print">
+    <button class="btn-line" onclick="printEval()">Print Report</button>
+  </div>`;
+
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalBg').classList.add('active');
+}
+function closeModal(){ document.getElementById('modalBg').classList.remove('active'); }
+function printEval(){ window.print(); }
+
+function toggleSigned(id, checked){
+  if (!firebaseReady) return;
+  const r = allEvals.find(e=>e.id===id);
+  const notes = r.actionPlan ? r.actionPlan.notes : "";
+  db.collection(COLLECTION).doc(id).update({ actionPlan: { signed: checked, signedDate: checked ? new Date().toISOString().slice(0,10) : "", notes } });
+}
+function saveActionNotes(id, notes){
+  if (!firebaseReady) return;
+  const r = allEvals.find(e=>e.id===id);
+  const signed = r.actionPlan ? r.actionPlan.signed : false;
+  const signedDate = r.actionPlan ? r.actionPlan.signedDate : "";
+  db.collection(COLLECTION).doc(id).update({ actionPlan: { signed, signedDate, notes } });
+}
+
+/* ---------------- TOAST ---------------- */
+function toast(msg){
+  const host = document.getElementById('toastHost');
+  const el = document.createElement('div');
+  el.className = "toast";
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(()=> el.remove(), 3200);
+}
+</script>
+</body>
+</html>
