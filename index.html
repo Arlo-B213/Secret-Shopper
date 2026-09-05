@@ -12,11 +12,11 @@
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
 
   :root{
-    --navy-950:#1f0608;
-    --navy-900:#330a0d;
-    --navy-800:#4a1114;
-    --navy-700:#6b171b;
-    --navy-600:#8a2024;
+    --navy-950:#2b0a0d;
+    --navy-900:#451116;
+    --navy-800:#611820;
+    --navy-700:#832028;
+    --navy-600:#a62a2f;
     --gold-500:#c8a24a;
     --gold-400:#dab968;
     --gold-100:#f3e7c9;
@@ -27,7 +27,7 @@
     --green:#3f8f5f;
     --amber:#c98a2c;
     --red:#b3453f;
-    --shadow: 0 12px 30px -12px rgba(31,6,8,.35);
+    --shadow: 0 12px 30px -12px rgba(43,10,13,.35);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -45,8 +45,8 @@
     min-height:100vh;
     display:flex;align-items:center;justify-content:center;
     background:
-      radial-gradient(1200px 600px at 20% -10%, #6b171b 0%, transparent 60%),
-      radial-gradient(1000px 500px at 100% 10%, #4a1114 0%, transparent 55%),
+      radial-gradient(1200px 600px at 20% -10%, #832028 0%, transparent 60%),
+      radial-gradient(1000px 500px at 100% 10%, #611820 0%, transparent 55%),
       var(--navy-950);
     padding:24px;
   }
@@ -136,7 +136,7 @@
 
   .panel{
     background:var(--ivory); border:1px solid #e4ddc9; border-radius:5px;
-    padding:26px 28px; margin-bottom:22px; box-shadow:0 2px 10px rgba(31,6,8,.05);
+    padding:26px 28px; margin-bottom:22px; box-shadow:0 2px 10px rgba(43,10,13,.05);
   }
   .panel h2{font-size:19px; margin:0 0 4px; color:var(--navy-900);}
   .panel .sub{font-size:13px; color:#7a7364; margin:0 0 20px;}
@@ -233,7 +233,7 @@
   .chart-wrap canvas{max-height:280px;}
 
   .modal-bg{
-    display:none; position:fixed; inset:0; background:rgba(31,6,8,.55); z-index:50;
+    display:none; position:fixed; inset:0; background:rgba(43,10,13,.55); z-index:50;
     align-items:flex-start; justify-content:center; overflow:auto; padding:40px 16px;
   }
   .modal-bg.active{display:flex;}
@@ -936,7 +936,7 @@ function renderTrendChart(rows){
   const ctx = document.getElementById('trendChart');
   if (!ctx) return;
   const outlets = [...new Set(allEvals.map(r=>r.outlet))];
-  const palette = ["#c8a24a","#6b171b","#3f8f5f","#8a5fb0","#8a2024","#c98a2c","#4a1114"];
+  const palette = ["#c8a24a","#832028","#3f8f5f","#8a5fb0","#a62a2f","#c98a2c","#611820"];
   const datasets = outlets.map((o,i)=>{
     const pts = allEvals.filter(r=>r.outlet===o).sort((a,b)=>new Date(a.date)-new Date(b.date));
     return {
@@ -1079,7 +1079,7 @@ function downloadPDF(id){
   const contentW = pageW - marginX*2;
   let y = marginTop;
 
-  const NAVY=[51,10,13], GOLD=[178,140,58], INK=[27,35,48], GREEN=[47,120,77], RED=[163,55,49], GRAY=[122,115,100];
+  const NAVY=[69,17,22], GOLD=[178,140,58], INK=[27,35,48], GREEN=[47,120,77], RED=[163,55,49], GRAY=[122,115,100];
   const setC = c => doc.setTextColor(c[0],c[1],c[2]);
 
   function newPageIfNeeded(need){
