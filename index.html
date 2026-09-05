@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -493,6 +494,12 @@ const EDITOR_PASSCODE = "pechanga2026";
 const VIEWER_PASSCODE = "viewonly2026";
 
 const COLLECTION = "mysteryShopperEvals";
+/* Collection watched by the Firebase "Trigger Email" extension.
+   Install it from the Firebase Console > Extensions, point it at this
+   collection name, and connect your SMTP provider (Gmail, SendGrid,
+   Mailgun, etc). Once installed, "Send via Firebase" delivers automatically
+   - no email client needs to open. Requires the Blaze (pay-as-you-go) plan. */
+const MAIL_COLLECTION = "mail";
 
 let db = null;
 let firebaseReady = false;
@@ -1057,21 +1064,16 @@ function openModal(id){
   <div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;" class="no-print">
     <input type="email" id="emailRecipient" placeholder="Send to (email address, comma-separate for several)" style="flex:1;min-width:240px;padding:9px 12px;border:1px solid #d8d0b8;border-radius:3px;font-size:13px;">
     <button class="btn-line" onclick="emailEval('${id}')">Email Report</button>
-    <button class="btn-line" onclick="printEval()">Print Report</button>
+    <button class="btn-navy" onclick="downloadPDF('${id}')">Download PDF</button>
+    <button class="btn-line" style="opacity:.55;" onclick="sendViaFirebase('${id}')" title="Queues in Firestore now; will auto-send once the Trigger Email extension + Blaze plan are set up later">Send via Firebase (future)</button>
   </div>`;
 
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('modalBg').classList.add('active');
 }
 function closeModal(){ document.getElementById('modalBg').classList.remove('active'); }
-function printEval(){ window.print(); }
-
-function emailEval(id){
-  const r = allEvals.find(e=>e.id===id);
-  if (!r) return;
-  const to = (document.getElementById('emailRecipient').value || "").trim();
+function buildReportText(r){
   const action = actionForScore(r.percent);
-
   const lines = [];
   lines.push("MYSTERY SHOPPER REPORT");
   lines.push(`Outlet: ${r.outlet}`);
@@ -1119,8 +1121,182 @@ function emailEval(id){
 
   const body = lines.join("\n");
   const subject = `Mystery Shopper Report \u2014 ${r.outlet} \u2014 ${r.date} \u2014 ${r.percent}%`;
+  return { subject, body };
+}
+
+function textToHtml(text){
+  const escaped = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#1b2330;white-space:pre-wrap;">${escaped}</div>`;
+}
+
+function printEval(){ window.print(); }
+
+function downloadPDF(id){
+  const r = allEvals.find(e=>e.id===id);
+  if (!r) return;
+  if (!window.jspdf){ toast("PDF library didn't load \u2014 check your connection and try again."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:"pt", format:"letter" });
+
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 50, marginTop = 56, marginBottom = 46;
+  const contentW = pageW - marginX*2;
+  let y = marginTop;
+
+  const NAVY=[21,39,65], GOLD=[178,140,58], INK=[27,35,48], GREEN=[47,120,77], RED=[163,55,49], GRAY=[122,115,100];
+  const setC = c => doc.setTextColor(c[0],c[1],c[2]);
+
+  function newPageIfNeeded(need){
+    if (y + need > pageH - marginBottom){ doc.addPage(); y = marginTop; }
+  }
+  function ruleLine(){
+    doc.setDrawColor(GOLD[0],GOLD[1],GOLD[2]); doc.setLineWidth(1);
+    doc.line(marginX, y, marginX+contentW, y);
+  }
+  function heading(text){
+    newPageIfNeeded(28);
+    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); setC(NAVY);
+    doc.text(text, marginX, y);
+    y += 6; ruleLine(); y += 15;
+  }
+  function paragraph(text, opts={}){
+    doc.setFont("helvetica", opts.bold?"bold":(opts.italic?"italic":"normal"));
+    doc.setFontSize(opts.size||9.5); setC(opts.color||INK);
+    const lines = doc.splitTextToSize(text, opts.width||contentW);
+    lines.forEach(line=>{ newPageIfNeeded(13); doc.text(line, opts.x||marginX, y); y += opts.lh||12.5; });
+  }
+  function labelValueRow(label, value){
+    newPageIfNeeded(14);
+    doc.setFont("helvetica","bold"); doc.setFontSize(9); setC(NAVY);
+    doc.text(label, marginX, y);
+    doc.setFont("helvetica","normal"); setC(INK);
+    doc.text(value || "\u2014", marginX+128, y);
+    y += 14;
+  }
+  function questionRow(qtext, tagText, answer, note){
+    const answerColW = 46;
+    const qWidth = contentW - answerColW;
+    doc.setFont("helvetica","normal"); doc.setFontSize(9.3);
+    const qLines = doc.splitTextToSize(qtext, qWidth);
+    let block = qLines.length*11.5 + 10.5;
+    let noteLines = [];
+    if (note){ noteLines = doc.splitTextToSize('\u201c'+note+'\u201d', qWidth-6); block += noteLines.length*10.5 + 2; }
+    newPageIfNeeded(block+6);
+    const startY = y;
+    doc.setFont("helvetica","normal"); doc.setFontSize(9.3); setC(INK);
+    qLines.forEach(line=>{ doc.text(line, marginX, y); y += 11.5; });
+    doc.setFont("helvetica","italic"); doc.setFontSize(7); setC(GRAY);
+    doc.text("["+tagText+"]", marginX, y); y += 10.5;
+    if (note){
+      doc.setFont("helvetica","italic"); doc.setFontSize(8); setC(GRAY);
+      noteLines.forEach(l=>{ doc.text(l, marginX+6, y); y += 10.5; });
+    }
+    const aColor = answer==='yes'?GREEN:answer==='no'?RED:GRAY;
+    const aText = answer==='yes'?'Yes':answer==='no'?'No':'N/A';
+    doc.setFont("helvetica","bold"); doc.setFontSize(9.3); setC(aColor);
+    doc.text(aText, marginX+contentW-answerColW+14, startY);
+    y += 5;
+  }
+
+  const action = actionForScore(r.percent);
+
+  // ---- Title ----
+  doc.setFont("helvetica","bold"); doc.setFontSize(17); setC(NAVY);
+  doc.text("PECHANGA RESORT CASINO", marginX, y); y += 19;
+  doc.setFont("helvetica","bold"); doc.setFontSize(12.5); setC(GOLD);
+  doc.text("Mystery Shopper Report \u2014 " + r.outlet, marginX, y); y += 22;
+
+  // ---- Visit info ----
+  labelValueRow("Outlet:", r.outlet);
+  labelValueRow("Date:", (r.date||"") + (r.day ? "  ("+r.day+")" : ""));
+  labelValueRow("Time In / Out:", (r.timeIn||"\u2014") + "  \u2013  " + (r.timeOut||"\u2014"));
+  labelValueRow("Shopper:", r.shopperName);
+  labelValueRow("Team Member(s):", r.teamMembers);
+  labelValueRow("Manager on Duty:", r.managerOnDuty);
+  y += 6;
+
+  // ---- Overall score banner ----
+  newPageIfNeeded(50);
+  doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
+  doc.roundedRect(marginX, y, contentW, 40, 3, 3, "F");
+  doc.setFont("helvetica","bold"); doc.setFontSize(20); setC(GOLD);
+  doc.text(r.percent + "%", marginX+16, y+27);
+  doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
+  doc.text(bandLabel(r.actionKey) + "  (" + r.points + "/" + r.max + " points)", marginX+95, y+24);
+  y += 55;
+  paragraph("SOP Guidance: " + (action.guidance||""), { size:8.8, italic:true, color:GRAY });
+  y += 8;
+
+  // ---- Sections ----
+  (r.sections||[]).forEach(sec=>{
+    heading(sec.name.toUpperCase() + "  \u2014  " + sec.points + "/" + sec.max);
+    sec.questions.forEach(q=> questionRow(q.text, q.skill, q.answer, q.note));
+    if (sec.comment){ y += 2; paragraph(sec.comment, { italic:true, size:9, color:INK }); }
+    y += 10;
+  });
+
+  // ---- Overall comments ----
+  if (r.overallComments){
+    heading("OVERALL COMMENTS");
+    paragraph(r.overallComments);
+    y += 8;
+  }
+
+  // ---- Action plan ----
+  if (r.actionKey !== 'celebrate'){
+    heading("ACTION PLAN & SIGN-OFF");
+    paragraph("Signed by team member(s): " + (r.actionPlan && r.actionPlan.signed ? "Yes, on " + (r.actionPlan.signedDate||"") : "Pending"), { bold:true });
+    if (r.actionPlan && r.actionPlan.notes){ y += 2; paragraph("Notes: " + r.actionPlan.notes); }
+    y += 20;
+    newPageIfNeeded(40);
+    doc.setDrawColor(180,180,180);
+    doc.line(marginX, y, marginX+180, y);
+    doc.line(marginX+220, y, marginX+400, y);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); setC(GRAY);
+    doc.text("Team Member Signature", marginX, y+12);
+    doc.text("Date", marginX+220, y+12);
+  }
+
+  // ---- Header/footer on every page ----
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i=1;i<=totalPages;i++){
+    doc.setPage(i);
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setC(GRAY);
+    doc.text("Pechanga Resort & Casino  |  Food Court Mystery Shopper", pageW-marginX, 28, { align:"right" });
+    doc.text("F&B - MGMT - 013-A   |   Page " + i + " of " + totalPages, pageW/2, pageH-22, { align:"center" });
+  }
+
+  const safeOutlet = (r.outlet||"outlet").replace(/[^a-z0-9]+/gi,"_");
+  doc.save(`Mystery_Shopper_${safeOutlet}_${r.date||'report'}.pdf`);
+}
+
+function emailEval(id){
+  const r = allEvals.find(e=>e.id===id);
+  if (!r) return;
+  const to = (document.getElementById('emailRecipient').value || "").trim();
+  const { subject, body } = buildReportText(r);
   const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href = mailto;
+}
+
+function sendViaFirebase(id){
+  const r = allEvals.find(e=>e.id===id);
+  if (!r) return;
+  const toRaw = (document.getElementById('emailRecipient').value || "").trim();
+  if (!toRaw){ toast("Enter a recipient email address first."); return; }
+  if (!firebaseReady){ toast("Firebase isn't configured."); return; }
+  const to = toRaw.split(",").map(s=>s.trim()).filter(Boolean);
+  const { subject, body } = buildReportText(r);
+  db.collection(MAIL_COLLECTION).add({
+    to,
+    message: { subject, text: body, html: textToHtml(body) }
+  }).then(()=>{
+    toast("Queued for sending \u2014 delivered once the Trigger Email extension processes it.");
+  }).catch(err=>{
+    console.error(err);
+    toast("Couldn't queue the email \u2014 check the '"+MAIL_COLLECTION+"' collection and extension setup.");
+  });
 }
 
 function toggleSigned(id, checked){
