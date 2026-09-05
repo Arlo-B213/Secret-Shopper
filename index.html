@@ -12,11 +12,11 @@
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
 
   :root{
-    --navy-950:#0a1220;
-    --navy-900:#0e1a2e;
-    --navy-800:#152741;
-    --navy-700:#1d3457;
-    --navy-600:#2a4a75;
+    --navy-950:#1f0608;
+    --navy-900:#330a0d;
+    --navy-800:#4a1114;
+    --navy-700:#6b171b;
+    --navy-600:#8a2024;
     --gold-500:#c8a24a;
     --gold-400:#dab968;
     --gold-100:#f3e7c9;
@@ -27,7 +27,7 @@
     --green:#3f8f5f;
     --amber:#c98a2c;
     --red:#b3453f;
-    --shadow: 0 12px 30px -12px rgba(10,18,32,.35);
+    --shadow: 0 12px 30px -12px rgba(31,6,8,.35);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -45,8 +45,8 @@
     min-height:100vh;
     display:flex;align-items:center;justify-content:center;
     background:
-      radial-gradient(1200px 600px at 20% -10%, #1d3457 0%, transparent 60%),
-      radial-gradient(1000px 500px at 100% 10%, #0e2038 0%, transparent 55%),
+      radial-gradient(1200px 600px at 20% -10%, #6b171b 0%, transparent 60%),
+      radial-gradient(1000px 500px at 100% 10%, #4a1114 0%, transparent 55%),
       var(--navy-950);
     padding:24px;
   }
@@ -136,7 +136,7 @@
 
   .panel{
     background:var(--ivory); border:1px solid #e4ddc9; border-radius:5px;
-    padding:26px 28px; margin-bottom:22px; box-shadow:0 2px 10px rgba(10,18,32,.05);
+    padding:26px 28px; margin-bottom:22px; box-shadow:0 2px 10px rgba(31,6,8,.05);
   }
   .panel h2{font-size:19px; margin:0 0 4px; color:var(--navy-900);}
   .panel .sub{font-size:13px; color:#7a7364; margin:0 0 20px;}
@@ -167,7 +167,7 @@
   .qtext{font-size:13.6px; line-height:1.42; color:#332f24;}
   .qtag{
     display:inline-block; font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;
-    color:var(--navy-700); background:#eaeef5; border:1px solid #d7dfec; border-radius:20px;
+    color:var(--navy-700); background:#f5e6e6; border:1px solid #e3c3c3; border-radius:20px;
     padding:1.5px 8px; margin-top:5px;
   }
   .answer-btns{display:flex; gap:6px;}
@@ -233,7 +233,7 @@
   .chart-wrap canvas{max-height:280px;}
 
   .modal-bg{
-    display:none; position:fixed; inset:0; background:rgba(10,18,32,.55); z-index:50;
+    display:none; position:fixed; inset:0; background:rgba(31,6,8,.55); z-index:50;
     align-items:flex-start; justify-content:center; overflow:auto; padding:40px 16px;
   }
   .modal-bg.active{display:flex;}
@@ -494,12 +494,6 @@ const EDITOR_PASSCODE = "pechanga2026";
 const VIEWER_PASSCODE = "viewonly2026";
 
 const COLLECTION = "mysteryShopperEvals";
-/* Collection watched by the Firebase "Trigger Email" extension.
-   Install it from the Firebase Console > Extensions, point it at this
-   collection name, and connect your SMTP provider (Gmail, SendGrid,
-   Mailgun, etc). Once installed, "Send via Firebase" delivers automatically
-   - no email client needs to open. Requires the Blaze (pay-as-you-go) plan. */
-const MAIL_COLLECTION = "mail";
 
 let db = null;
 let firebaseReady = false;
@@ -942,7 +936,7 @@ function renderTrendChart(rows){
   const ctx = document.getElementById('trendChart');
   if (!ctx) return;
   const outlets = [...new Set(allEvals.map(r=>r.outlet))];
-  const palette = ["#c8a24a","#1d3457","#3f8f5f","#b3453f","#8a5fb0","#2a4a75","#c98a2c"];
+  const palette = ["#c8a24a","#6b171b","#3f8f5f","#8a5fb0","#8a2024","#c98a2c","#4a1114"];
   const datasets = outlets.map((o,i)=>{
     const pts = allEvals.filter(r=>r.outlet===o).sort((a,b)=>new Date(a.date)-new Date(b.date));
     return {
@@ -1062,72 +1056,13 @@ function openModal(id){
   }
   html += `</div>
   <div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;" class="no-print">
-    <input type="email" id="emailRecipient" placeholder="Send to (email address, comma-separate for several)" style="flex:1;min-width:240px;padding:9px 12px;border:1px solid #d8d0b8;border-radius:3px;font-size:13px;">
-    <button class="btn-line" onclick="emailEval('${id}')">Email Report</button>
     <button class="btn-navy" onclick="downloadPDF('${id}')">Download PDF</button>
-    <button class="btn-line" style="opacity:.55;" onclick="sendViaFirebase('${id}')" title="Queues in Firestore now; will auto-send once the Trigger Email extension + Blaze plan are set up later">Send via Firebase (future)</button>
   </div>`;
 
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('modalBg').classList.add('active');
 }
 function closeModal(){ document.getElementById('modalBg').classList.remove('active'); }
-function buildReportText(r){
-  const action = actionForScore(r.percent);
-  const lines = [];
-  lines.push("MYSTERY SHOPPER REPORT");
-  lines.push(`Outlet: ${r.outlet}`);
-  lines.push(`Date: ${r.date}${r.day ? '  ('+r.day+')' : ''}   Time: ${r.timeIn||'\u2014'} - ${r.timeOut||'\u2014'}`);
-  lines.push(`Shopper: ${r.shopperName||'\u2014'}    Team Member(s): ${r.teamMembers||'\u2014'}    Manager on Duty: ${r.managerOnDuty||'\u2014'}`);
-  lines.push("");
-  lines.push(`OVERALL SCORE: ${r.points}/${r.max}  (${r.percent}%)  \u2014  ${bandLabel(r.actionKey)}`);
-  if (action.guidance) lines.push(`SOP Guidance: ${action.guidance}`);
-  lines.push("");
-  lines.push("SECTION SCORES");
-  (r.sections||[]).forEach(sec=>{
-    lines.push(`- ${sec.name}: ${sec.points}/${sec.max}`);
-  });
-
-  const misses = [];
-  (r.sections||[]).forEach(sec=>{
-    (sec.questions||[]).forEach(q=>{
-      if (q.answer === 'no'){
-        misses.push(`[${sec.name}] ${q.text}${q.note ? '  \u2014 "'+q.note+'"' : ''}`);
-      }
-    });
-  });
-  if (misses.length){
-    lines.push("");
-    lines.push("AREAS NEEDING ATTENTION (marked No):");
-    misses.forEach(m=> lines.push(`- ${m}`));
-  }
-
-  (r.sections||[]).forEach(sec=>{
-    if (sec.comment) { lines.push(""); lines.push(`${sec.name.toUpperCase()} COMMENTS:`); lines.push(sec.comment); }
-  });
-
-  if (r.overallComments){
-    lines.push("");
-    lines.push("OVERALL COMMENTS:");
-    lines.push(r.overallComments);
-  }
-  if (r.actionPlan && r.actionPlan.notes){
-    lines.push("");
-    lines.push("ACTION PLAN NOTES:");
-    lines.push(r.actionPlan.notes);
-  }
-  lines.push("");
-  lines.push("\u2014 Sent from the Pechanga Food Court Mystery Shopper app");
-
-  const body = lines.join("\n");
-  const subject = `Mystery Shopper Report \u2014 ${r.outlet} \u2014 ${r.date} \u2014 ${r.percent}%`;
-  return { subject, body };
-}
-
-function textToHtml(text){
-  const escaped = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#1b2330;white-space:pre-wrap;">${escaped}</div>`;
-}
 
 function printEval(){ window.print(); }
 
@@ -1144,7 +1079,7 @@ function downloadPDF(id){
   const contentW = pageW - marginX*2;
   let y = marginTop;
 
-  const NAVY=[21,39,65], GOLD=[178,140,58], INK=[27,35,48], GREEN=[47,120,77], RED=[163,55,49], GRAY=[122,115,100];
+  const NAVY=[51,10,13], GOLD=[178,140,58], INK=[27,35,48], GREEN=[47,120,77], RED=[163,55,49], GRAY=[122,115,100];
   const setC = c => doc.setTextColor(c[0],c[1],c[2]);
 
   function newPageIfNeeded(need){
@@ -1269,34 +1204,6 @@ function downloadPDF(id){
 
   const safeOutlet = (r.outlet||"outlet").replace(/[^a-z0-9]+/gi,"_");
   doc.save(`Mystery_Shopper_${safeOutlet}_${r.date||'report'}.pdf`);
-}
-
-function emailEval(id){
-  const r = allEvals.find(e=>e.id===id);
-  if (!r) return;
-  const to = (document.getElementById('emailRecipient').value || "").trim();
-  const { subject, body } = buildReportText(r);
-  const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href = mailto;
-}
-
-function sendViaFirebase(id){
-  const r = allEvals.find(e=>e.id===id);
-  if (!r) return;
-  const toRaw = (document.getElementById('emailRecipient').value || "").trim();
-  if (!toRaw){ toast("Enter a recipient email address first."); return; }
-  if (!firebaseReady){ toast("Firebase isn't configured."); return; }
-  const to = toRaw.split(",").map(s=>s.trim()).filter(Boolean);
-  const { subject, body } = buildReportText(r);
-  db.collection(MAIL_COLLECTION).add({
-    to,
-    message: { subject, text: body, html: textToHtml(body) }
-  }).then(()=>{
-    toast("Queued for sending \u2014 delivered once the Trigger Email extension processes it.");
-  }).catch(err=>{
-    console.error(err);
-    toast("Couldn't queue the email \u2014 check the '"+MAIL_COLLECTION+"' collection and extension setup.");
-  });
 }
 
 function toggleSigned(id, checked){
