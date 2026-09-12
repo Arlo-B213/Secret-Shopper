@@ -690,14 +690,38 @@
     <div class="view" id="view-skills">
       <div class="panel">
         <h2>Soft Skills Roll-Up</h2>
-        <p class="sub">Every question is tagged to one of the 10 Essential Soft Skills. This shows where coaching effort will move the needle most, across all outlets and evaluations.</p>
+        <p class="sub" id="skillsScopeNote">Every question is tagged to one of the 10 Essential Soft Skills. This shows where coaching effort will move the needle most, across all outlets and evaluations.</p>
+        <div class="filters">
+          <select id="filterSkillsOutlet" onchange="renderSkillsInsights()">
+            <option value="">All Outlets</option>
+            <option>Pronto</option>
+            <option>Agave</option>
+            <option>American Classics</option>
+            <option>Pechanga Fried Chicken</option>
+            <option>Caf&eacute; Cocoa's</option>
+            <option>Little Wok</option>
+            <option>Portable Smart Bar</option>
+            <option>Great Oak Steakhouse</option>
+            <option>Pisano's Italiano</option>
+            <option>1882 Cantina</option>
+            <option>Kelsey's</option>
+            <option>Umi Sushi</option>
+          </select>
+        </div>
         <div class="chart-wrap" style="margin-top:6px;">
           <canvas id="skillsChart"></canvas>
+        </div>
+        <div class="empty-state" id="skillsEmpty" style="display:none;">
+          <div class="icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1Z"/><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 12h6M9 16h4"/></svg>
+          </div>
+          <div class="big">No evaluations yet for this outlet</div>
+          <div>Pick a different outlet, or save a Mystery Shopper visit for this one.</div>
         </div>
       </div>
       <div class="panel" id="skillsBreakdownPanel">
         <h2>Lowest-Performing Skills</h2>
-        <p class="sub">Skills below 92% across all recorded evaluations, worst first.</p>
+        <p class="sub" id="skillsListScopeNote">Skills below 92% across all recorded evaluations, worst first.</p>
         <div id="skillsList"></div>
       </div>
     </div>
@@ -1684,9 +1708,35 @@ function renderTrendChart(rows){
 function renderSkillsInsights(){
   const ctx = document.getElementById('skillsChart');
   if (!ctx) return;
+
+  const outletFilter = document.getElementById('filterSkillsOutlet') ? document.getElementById('filterSkillsOutlet').value : "";
+  const scopedEvals = outletFilter ? allEvals.filter(r=>r.outlet===outletFilter) : allEvals;
+
+  const scopeNote = document.getElementById('skillsScopeNote');
+  const listScopeNote = document.getElementById('skillsListScopeNote');
+  const scopeLabel = outletFilter ? `for ${outletFilter}` : "across all outlets and evaluations";
+  scopeNote.textContent = `Every question is tagged to one of the 10 Essential Soft Skills. This shows where coaching effort will move the needle most, ${scopeLabel}.`;
+  listScopeNote.textContent = outletFilter
+    ? `Skills below 92% for ${outletFilter}, worst first.`
+    : "Skills below 92% across all recorded evaluations, worst first.";
+
+  const chartWrap = ctx.closest('.chart-wrap');
+  const emptyEl = document.getElementById('skillsEmpty');
+  const list = document.getElementById('skillsList');
+
+  if (outletFilter && scopedEvals.length === 0){
+    chartWrap.style.display = "none";
+    emptyEl.style.display = "block";
+    list.innerHTML = "";
+    if (skillsChartInstance){ skillsChartInstance.destroy(); skillsChartInstance = null; }
+    return;
+  }
+  chartWrap.style.display = "";
+  emptyEl.style.display = "none";
+
   const tally = {};
   SKILLS.forEach(s=> tally[s] = { pts:0, max:0 });
-  allEvals.forEach(ev=>{
+  scopedEvals.forEach(ev=>{
     (ev.sections||[]).forEach(sec=>{
       (sec.questions||[]).forEach(q=>{
         if (q.answer==='na' || q.answer===null || q.answer===undefined) return;
@@ -1725,7 +1775,6 @@ function renderSkillsInsights(){
     }
   });
 
-  const list = document.getElementById('skillsList');
   const ranked = labels
     .map(s=>({ skill:s, pct: tally[s].max ? tally[s].pts/tally[s].max*100 : null }))
     .filter(x=> x.pct !== null && x.pct < 92)
