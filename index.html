@@ -309,6 +309,195 @@
     .panel{box-shadow:none; border:none;}
   }
 </style>
+<style id="ui-enhancements">
+  /* =========================================================================
+     UI ENHANCEMENT LAYER
+     Sits on top of the base stylesheet: refined motion, depth, focus states,
+     and small ambient touches. Nothing here renames or removes a selector
+     the JS depends on — only adds/overrides visual treatment.
+     ========================================================================= */
+  :root{
+    --ease:cubic-bezier(.4,0,.2,1);
+    --ease-spring:cubic-bezier(.34,1.56,.64,1);
+    --shadow-xs:0 1px 3px rgba(43,10,13,.08);
+    --shadow-sm:0 4px 14px -6px rgba(43,10,13,.18);
+    --shadow-lg:0 24px 60px -20px rgba(43,10,13,.45);
+    --glow-gold:0 0 0 3px rgba(200,162,74,.22);
+  }
+
+  ::selection{ background:var(--gold-400); color:var(--navy-950); }
+
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:linear-gradient(var(--gold-500),var(--navy-700)); border-radius:20px; border:2px solid var(--cream); }
+  html{ scrollbar-color:var(--gold-500) var(--cream); }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
+    outline:none; box-shadow:var(--glow-gold); border-radius:3px;
+  }
+
+  body{ animation:bodyFade .4s var(--ease); }
+  @keyframes bodyFade{ from{opacity:0;} to{opacity:1;} }
+
+  /* ---------- Gate ---------- */
+  #gate{
+    background:
+      radial-gradient(1200px 600px at 20% -10%, #832028 0%, transparent 60%),
+      radial-gradient(1000px 500px at 100% 10%, #611820 0%, transparent 55%),
+      radial-gradient(800px 400px at 50% 120%, #6a1a20 0%, transparent 60%),
+      var(--navy-950);
+    background-size:140% 140%, 140% 140%, 140% 140%, 100% 100%;
+    animation:gateDrift 18s ease-in-out infinite alternate;
+  }
+  @keyframes gateDrift{ 0%{background-position:0% 0%, 100% 0%, 50% 100%;} 100%{background-position:8% 6%, 92% 8%, 54% 92%;} }
+
+  .gate-card{
+    animation:gateRise .55s var(--ease-spring) both;
+    box-shadow:var(--shadow-lg), 0 0 0 1px rgba(200,162,74,.06) inset;
+  }
+  @keyframes gateRise{ from{opacity:0; transform:translateY(18px) scale(.98);} to{opacity:1; transform:translateY(0) scale(1);} }
+
+  .crest{
+    background:radial-gradient(circle at 35% 30%, rgba(220,185,104,.25), transparent 60%);
+    box-shadow:0 0 0 1px rgba(200,162,74,.15), 0 4px 10px -4px rgba(0,0,0,.4);
+    transition:transform .35s var(--ease-spring);
+  }
+  .gate-card:hover .crest{ transform:rotate(8deg) scale(1.06); }
+
+  .role-toggle button, .top-right button, .btn-line, .btn-navy, .btn-gold{ transition:all .18s var(--ease); }
+  .role-toggle button:hover:not(.active){ border-color:var(--gold-500); color:var(--gold-400); background:rgba(200,162,74,.08); }
+  .role-toggle button.active{ box-shadow:0 4px 12px -4px rgba(200,162,74,.5); }
+
+  .gate-card input[type=password], .gate-card input[type=text]{ transition:border-color .18s var(--ease), box-shadow .18s var(--ease); }
+  .gate-card input:focus{ outline:none; border-color:var(--gold-500); box-shadow:var(--glow-gold); }
+
+  .btn-gold{ position:relative; overflow:hidden; box-shadow:0 6px 16px -6px rgba(200,162,74,.55); }
+  .btn-gold::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 48%,transparent 66%);
+    transform:translateX(-120%); transition:transform .6s var(--ease);
+  }
+  .btn-gold:hover::after{ transform:translateX(120%); }
+  .btn-gold:active{ transform:translateY(1px); }
+
+  /* ---------- Header ---------- */
+  header.top{ transition:box-shadow .25s var(--ease); }
+  header.top.is-scrolled{ box-shadow:0 8px 24px -14px rgba(0,0,0,.5); }
+  .brand .crest{ transition:transform .3s var(--ease-spring); }
+  .brand:hover .crest{ transform:rotate(-6deg); }
+
+  nav.tabs button{ position:relative; }
+  nav.tabs button::after{
+    content:""; position:absolute; left:14px; right:14px; bottom:2px; height:2px; border-radius:2px;
+    background:var(--gold-500); transform:scaleX(0); transform-origin:center; transition:transform .25s var(--ease);
+  }
+  nav.tabs button.active::after{ transform:scaleX(1); }
+  nav.tabs button:hover{ background:rgba(255,255,255,.05); }
+  @media(max-width:760px){
+    header.top{ flex-wrap:wrap; row-gap:10px; }
+    nav.tabs{ order:3; width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    nav.tabs::-webkit-scrollbar{ display:none; }
+    nav.tabs button{ white-space:nowrap; }
+  }
+  .top-right button:hover{ transform:translateY(-1px); box-shadow:var(--shadow-xs); }
+
+  /* ---------- View transitions ---------- */
+  .view{ opacity:0; }
+  .view.active{ opacity:1; animation:viewIn .35s var(--ease) both; }
+  @keyframes viewIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+
+  /* ---------- Panels & fields ---------- */
+  .panel{ transition:box-shadow .25s var(--ease); }
+  .panel:hover{ box-shadow:0 6px 20px -10px rgba(43,10,13,.14); }
+
+  .field input, .field select, .field textarea{ transition:border-color .18s var(--ease), box-shadow .18s var(--ease); }
+  .field input:focus, .field select:focus, .field textarea:focus{
+    outline:none; border-color:var(--gold-500); box-shadow:var(--glow-gold); background:#fffdf7;
+  }
+  .field select{ cursor:pointer; }
+  ::placeholder{ color:#a79f88; }
+
+  .qrow{ transition:background .18s var(--ease); border-radius:4px; }
+  .qrow:hover{ background:rgba(200,162,74,.05); }
+
+  .answer-btns button, .scale-btns button{
+    transition:transform .15s var(--ease-spring), box-shadow .15s var(--ease), background .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease);
+  }
+  .answer-btns button:hover, .scale-btns button:hover{ transform:translateY(-2px); box-shadow:var(--shadow-xs); }
+  .answer-btns button.sel-yes, .answer-btns button.sel-no, .answer-btns button.sel-na,
+  .scale-btns button.sel-1, .scale-btns button.sel-2, .scale-btns button.sel-3, .scale-btns button.sel-4, .scale-btns button.sel-5, .scale-btns button.sel-na{
+    box-shadow:0 4px 10px -4px rgba(0,0,0,.35); transform:translateY(-1px);
+  }
+  .answer-btns button:active, .scale-btns button:active{ transform:translateY(0) scale(.94); }
+
+  .role-chip{ transition:transform .15s var(--ease); }
+  .role-chip:hover{ transform:translateY(-1px); }
+
+  .note-line{ animation:noteIn .2s var(--ease) both; }
+  @keyframes noteIn{ from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);} }
+
+  /* ---------- Submit bar / live score ---------- */
+  .submit-bar{ backdrop-filter:blur(6px); }
+  .live-score .num{ display:inline-block; }
+  .live-score .num.pulse{ animation:scorePulse .5s var(--ease-spring); }
+  @keyframes scorePulse{ 0%{transform:scale(1);} 35%{transform:scale(1.18); color:var(--gold-100);} 100%{transform:scale(1);} }
+  .action-pill{ transition:background .2s var(--ease), color .2s var(--ease); }
+  .btn-navy{ position:relative; overflow:hidden; }
+  .btn-navy::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 66%);
+    transform:translateX(-120%); transition:transform .55s var(--ease);
+  }
+  .btn-navy:hover::after{ transform:translateX(120%); }
+  .btn-navy:active{ transform:translateY(1px); }
+
+  /* ---------- Stat cards ---------- */
+  .stat-card{ transition:transform .2s var(--ease), box-shadow .2s var(--ease); position:relative; overflow:hidden; }
+  .stat-card::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--gold-500);
+    transform:scaleY(0); transform-origin:bottom; transition:transform .25s var(--ease);
+  }
+  .stat-card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-sm); }
+  .stat-card:hover::before{ transform:scaleY(1); }
+
+  /* ---------- Table ---------- */
+  table.evals tr{ transition:box-shadow .15s var(--ease), background .15s var(--ease); }
+  table.evals tr:hover{ box-shadow:inset 3px 0 0 var(--gold-500); }
+  .score-chip{ transition:transform .15s var(--ease); }
+  table.evals tr:hover .score-chip{ transform:scale(1.05); }
+
+  .filters select{ transition:border-color .18s var(--ease), box-shadow .18s var(--ease); cursor:pointer; }
+  .filters select:focus{ outline:none; border-color:var(--gold-500); box-shadow:var(--glow-gold); }
+
+  .empty-state{ animation:viewIn .3s var(--ease) both; }
+  .empty-state .icon{
+    width:56px; height:56px; margin:0 auto 14px; border-radius:50%;
+    border:1.5px dashed #d8cfa9; display:flex; align-items:center; justify-content:center; color:var(--gold-500);
+  }
+
+  .chart-wrap{ transition:box-shadow .25s var(--ease); }
+  .chart-wrap:hover{ box-shadow:var(--shadow-sm); }
+
+  /* ---------- Modal ---------- */
+  .modal-bg{ backdrop-filter:blur(3px); }
+  .modal-bg.active .modal{ animation:modalIn .3s var(--ease-spring) both; }
+  @keyframes modalIn{ from{opacity:0; transform:translateY(16px) scale(.97);} to{opacity:1; transform:translateY(0) scale(1);} }
+  .modal-close{ transition:transform .15s var(--ease), color .15s var(--ease), background .15s var(--ease); border-radius:50%; width:30px; height:30px; }
+  .modal-close:hover{ color:var(--gold-400); transform:rotate(90deg); background:rgba(255,255,255,.08); }
+
+  .rpt-q{ transition:background .15s var(--ease); border-radius:3px; }
+  .rpt-q:hover{ background:rgba(200,162,74,.06); }
+
+  .action-plan-box textarea:focus{ outline:none; border-color:var(--gold-500); box-shadow:var(--glow-gold); }
+
+  /* ---------- Toast ---------- */
+  .toast{ animation:toastIn .3s var(--ease-spring) both; }
+  @keyframes toastIn{ from{opacity:0; transform:translate(-50%,10px);} to{opacity:1; transform:translate(-50%,0);} }
+
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  }
+</style>
 </head>
 <body>
 
@@ -485,6 +674,9 @@
           <tbody id="historyTbody"></tbody>
         </table>
         <div class="empty-state" id="historyEmpty" style="display:none;">
+          <div class="icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1Z"/><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 12h6M9 16h4"/></svg>
+          </div>
           <div class="big">No evaluations yet</div>
           <div>Save your first Mystery Shopper visit from the New Evaluation tab.</div>
         </div>
@@ -1226,6 +1418,7 @@ function recalcLiveScore(){
     });
     const pct = max > 0 ? (pts/max*100) : null;
     document.getElementById('liveScoreNum').textContent = pct===null ? '\u2014' : pct.toFixed(0)+'%';
+    pulseEl(document.getElementById('liveScoreNum'));
     const action = actionForScore(pct);
     const pill = document.getElementById('liveActionPill');
     pill.className = "action-pill " + (action.pillClass||"");
@@ -1240,6 +1433,7 @@ function recalcLiveScore(){
     const avg = cnt ? sum/cnt : null;
     const pct = avg===null ? null : (avg/5*100);
     document.getElementById('liveScoreNum').textContent = avg===null ? '\u2014' : avg.toFixed(2)+' /5';
+    pulseEl(document.getElementById('liveScoreNum'));
     const action = passFailForScore(pct);
     const pill = document.getElementById('liveActionPill');
     pill.className = "action-pill " + (action.pillClass||"");
@@ -1795,6 +1989,20 @@ function toast(msg){
   host.appendChild(el);
   setTimeout(()=> el.remove(), 3200);
 }
+</script>
+
+<script>
+/* ---------------- UI ENHANCEMENT LAYER (motion helpers) ---------------- */
+function pulseEl(el){
+  if (!el) return;
+  el.classList.remove('pulse');
+  void el.offsetWidth; /* force reflow so the animation restarts every call */
+  el.classList.add('pulse');
+}
+window.addEventListener('scroll', ()=>{
+  const header = document.querySelector('header.top');
+  if (header) header.classList.toggle('is-scrolled', window.scrollY > 8);
+}, { passive:true });
 </script>
 </body>
 </html>
