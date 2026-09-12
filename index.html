@@ -6,6 +6,7 @@
 <title>Pechanga Food Court | Mystery Shopper</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -179,6 +180,28 @@
   .answer-btns button.sel-no{background:var(--red); color:#fff; border-color:var(--red);}
   .answer-btns button.sel-na{background:#8a8368; color:#fff; border-color:#8a8368;}
 
+  .scale-btns{display:flex; gap:5px;}
+  .scale-btns button{
+    width:32px; height:32px; border-radius:50%; border:1px solid #d8d0b8; background:#fff;
+    font-size:12.5px; font-weight:700; cursor:pointer; color:#8a8368;
+  }
+  .scale-btns button.sel-1{background:var(--red); color:#fff; border-color:var(--red);}
+  .scale-btns button.sel-2{background:#c9756f; color:#fff; border-color:#c9756f;}
+  .scale-btns button.sel-3{background:var(--amber); color:#fff; border-color:var(--amber);}
+  .scale-btns button.sel-4{background:#6fae87; color:#fff; border-color:#6fae87;}
+  .scale-btns button.sel-5{background:var(--green); color:#fff; border-color:var(--green);}
+  .scale-btns button.na-btn{border-radius:14px; width:36px; font-size:9.5px;}
+  .scale-btns button.sel-na{background:#8a8368; color:#fff; border-color:#8a8368;}
+  .role-chip{
+    display:inline-flex; align-items:center; gap:6px; background:#f5efe0; border:1px solid #e4ddc9;
+    border-radius:20px; padding:4px 12px; font-size:12px; color:var(--navy-800); font-weight:600; margin:0 6px 6px 0;
+  }
+  .role-chip b{ color:var(--gold-500); font-family:'Fraunces',serif; }
+  .standard-badge{
+    display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+    padding:2px 9px; border-radius:20px; background:var(--navy-800); color:#fff; margin-left:8px; vertical-align:middle;
+  }
+
   .note-line{margin-top:6px;}
   .note-line input{
     width:100%; padding:6px 9px; font-size:12.5px; border:1px solid #e5ddc4; border-radius:3px;
@@ -332,19 +355,41 @@
     <div class="view" id="view-new">
       <div class="panel">
         <h2>Visit Details</h2>
-        <p class="sub">Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.</p>
+        <p class="sub" id="outletSub">Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.</p>
         <div class="grid3">
           <div class="field">
             <label>Outlet</label>
             <select id="f-outlet" onchange="onOutletChange()">
               <option value="">Select outlet&hellip;</option>
-              <option>Pronto</option>
-              <option>Agave</option>
-              <option>American Classics</option>
-              <option>Pechanga Fried Chicken</option>
-              <option>Caf&eacute; Cocoa's</option>
-              <option>Little Wok</option>
-              <option>Portable Smart Bar</option>
+              <optgroup label="Quick Service (Food Court)">
+                <option>Pronto</option>
+                <option>Agave</option>
+                <option>American Classics</option>
+                <option>Pechanga Fried Chicken</option>
+                <option>Caf&eacute; Cocoa's</option>
+                <option>Little Wok</option>
+                <option>Portable Smart Bar</option>
+              </optgroup>
+              <optgroup label="Fine Dining">
+                <option>Great Oak Steakhouse</option>
+                <option>Pisano's Italiano</option>
+              </optgroup>
+              <optgroup label="Casual Dining">
+                <option>1882 Cantina</option>
+                <option>Kelsey's</option>
+              </optgroup>
+              <optgroup label="Sushi">
+                <option>Umi Sushi</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="field" id="areaFocusField" style="display:none;">
+            <label>Area Evaluated</label>
+            <select id="f-areafocus">
+              <option>Full Visit</option>
+              <option>Dining Room Focus</option>
+              <option>Sushi Bar Focus</option>
+              <option>Bar Focus</option>
             </select>
           </div>
           <div class="field">
@@ -417,11 +462,18 @@
             <option>Caf&eacute; Cocoa's</option>
             <option>Little Wok</option>
             <option>Portable Smart Bar</option>
+            <option>Great Oak Steakhouse</option>
+            <option>Pisano's Italiano</option>
+            <option>1882 Cantina</option>
+            <option>Kelsey's</option>
+            <option>Umi Sushi</option>
           </select>
           <select id="filterAction" onchange="renderHistory()">
             <option value="">All Score Bands</option>
             <option value="celebrate">100% &mdash; Celebrate</option>
             <option value="acceptable">92&ndash;99% &mdash; Acceptable</option>
+            <option value="pass">Pass (Fine Dining/Casual/Sushi)</option>
+            <option value="fail">Fail (Fine Dining/Casual/Sushi)</option>
             <option value="verbal">85&ndash;91% &mdash; Verbal Warning</option>
             <option value="written">&le;84% &mdash; Written Warning</option>
           </select>
@@ -497,10 +549,26 @@ const COLLECTION = "mysteryShopperEvals";
 
 let db = null;
 let firebaseReady = false;
+
+function startFirestoreSync(){
+  firebaseReady = true;
+  loadEvaluations();
+}
+
 try {
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
-  firebaseReady = true;
+  // Firestore rules require a real signed-in request (request.auth != null),
+  // matching the same pattern as this project's other tools. This signs the
+  // app in anonymously in the background - no login screen for your team,
+  // but every read/write now carries a valid auth token.
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) startFirestoreSync();
+  });
+  firebase.auth().signInAnonymously().catch(err => {
+    console.error("Firebase anonymous sign-in failed:", err);
+    toast("Couldn't connect to Firebase - check that Anonymous sign-in is enabled (Authentication > Sign-in method).");
+  });
 } catch(e) {
   console.warn("Firebase not configured yet:", e);
 }
@@ -610,6 +678,280 @@ const SECTION_TEMPLATE = [
 ];
 
 /* =========================================================================
+   FINE DINING STANDARD (Forbes Travel Guide + AAA 4 Diamond)
+   1-5 scale per question ("enter 5 if N/A"), section averages, role roll-ups,
+   Pass/Fail at 80%. Shared by Great Oak Steakhouse, Pisano's Italiano, and
+   (with two extra sections) Umi Sushi.
+   ========================================================================= */
+const FINE_DINING_SECTIONS = [
+  { key:"reservation", name:"Reservation Process", role:"Host Staff", questions:[
+    { t:"Reservation process is smooth and professional", skill:"Professionalism & Appearance" },
+    { t:"Staff is knowledgeable about menu, hours, and policies", skill:"Communication Clarity" },
+    { t:"Special requests are noted and confirmed", skill:"Attention to Detail" },
+    { t:"Follow-up communication (confirmation calls/emails) is professional", skill:"Communication Clarity" },
+    { t:"Waitlist management is efficient if restaurant is fully booked", skill:"Time Management" },
+  ]},
+  { key:"arrival", name:"Arrival & Greeting", role:"Host Staff", questions:[
+    { t:"Immediate greeting upon arrival (10/5 Rule within 30 seconds)", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Host/Hostess is well-groomed and professionally dressed", skill:"Professionalism & Appearance" },
+    { t:"Guest name is used appropriately during greeting", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Coat & purse stand service is offered and efficient if used", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Seating is prompt, even when restaurant is busy", skill:"Time Management" },
+    { t:"Table assignment matches reservation preferences", skill:"Attention to Detail" },
+  ]},
+  { key:"diningroom", name:"Dining Room", role:"Restaurant/Facilities", questions:[
+    { t:"D\u00e9cor is elegant, cohesive, and well-maintained", skill:"Attention to Detail" },
+    { t:"Tables are appropriately spaced for privacy", skill:"Attention to Detail" },
+    { t:"Noise level allows for comfortable conversation", skill:"Attention to Detail" },
+    { t:"Temperature is comfortable throughout the dining room", skill:"Attention to Detail" },
+    { t:"Lighting enhances the dining experience", skill:"Attention to Detail" },
+    { t:"Restaurant is impeccably clean, including floors, windows, and surfaces", skill:"Attention to Detail" },
+    { t:"Restrooms are clean, well-stocked, and monitored regularly", skill:"Attention to Detail" },
+    { t:"Background music is appropriate in volume and selection", skill:"Attention to Detail" },
+  ]},
+  { key:"tablesetting", name:"Table Setting", role:"Server/Bartender", questions:[
+    { t:"Table is clean and free of smudges or crumbs", skill:"Attention to Detail" },
+    { t:"Flatware is polished and properly arranged", skill:"Attention to Detail" },
+    { t:"Glassware is spotless and appropriate for beverages ordered", skill:"Attention to Detail" },
+    { t:"Linens are pristine and pressed", skill:"Attention to Detail" },
+    { t:"Table appointments are of high quality and condition", skill:"Attention to Detail" },
+  ]},
+  { key:"staffappearance", name:"Staff Appearance & Demeanor", role:"Bus Person/Expeditor", questions:[
+    { t:"All staff members are professionally groomed", skill:"Professionalism & Appearance" },
+    { t:"Uniforms are clean, well-fitted, and appropriate for the restaurant", skill:"Professionalism & Appearance" },
+    { t:"Staff moves with purpose and efficiency", skill:"Time Management" },
+    { t:"Teamwork is evident between front and back of house", skill:"Teamwork & Collaboration" },
+    { t:"Staff appears genuinely pleased to serve guests", skill:"Positive Attitude & Resilience" },
+  ]},
+  { key:"servicestandards", name:"Service Standards", role:"Server/Bartender", questions:[
+    { t:"Menus are presented properly and explained when necessary", skill:"Communication Clarity" },
+    { t:"Specials are presented with knowledge and enthusiasm", skill:"Communication Clarity" },
+    { t:"Staff demonstrates extensive menu knowledge", skill:"Communication Clarity" },
+    { t:"Wine recommendations are appropriate and knowledgeable", skill:"Communication Clarity" },
+    { t:"Water/coffee/cocktail/soda service is attentive but not intrusive", skill:"Active Listening" },
+    { t:"Bread service is timely and replenished as needed", skill:"Time Management" },
+    { t:"Table maintenance is discreet and efficient", skill:"Attention to Detail" },
+    { t:"Crumbing between courses is performed when appropriate", skill:"Attention to Detail" },
+    { t:"Staff timing is well-coordinated throughout the meal", skill:"Time Management" },
+    { t:"Guest names are used appropriately throughout the experience", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Eye contact and genuine engagement from serving staff members", skill:"Active Listening" },
+  ]},
+  { key:"beverageprogram", name:"Beverage Program", role:"Bus Person/Server", questions:[
+    { t:"Beverage list is extensive and well-curated", skill:"Attention to Detail" },
+    { t:"Glassware is appropriate for different beverages", skill:"Attention to Detail" },
+    { t:"Wine by the glass selections are interesting and well-maintained", skill:"Attention to Detail" },
+    { t:"Craft cocktails show creativity and proper execution", skill:"Attention to Detail" },
+    { t:"Sommelier knowledge is exceptional (if applicable)", skill:"Communication Clarity" },
+    { t:"Beverage service is proper in temperature and presentation", skill:"Attention to Detail" },
+    { t:"Water is offered with options (still/sparkling) and refilled appropriately", skill:"Active Listening" },
+  ]},
+  { key:"culinary", name:"Culinary Experience", role:"Overall Food & Beverage", questions:[
+    { t:"Food presentation is visually appealing and artistic", skill:"Attention to Detail" },
+    { t:"Ingredients are of exceptional quality", skill:"Attention to Detail" },
+    { t:"Food temperature is appropriate for each dish", skill:"Attention to Detail" },
+    { t:"Flavor profiles are balanced and distinctive", skill:"Attention to Detail" },
+    { t:"Portion sizes are appropriate for the price point", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Special dietary accommodations are handled seamlessly", skill:"Adaptability" },
+    { t:"Tableside preparation (if applicable) is performed with skill and showmanship", skill:"Professionalism & Appearance" },
+    { t:"Courses are properly timed with appropriate pacing", skill:"Time Management" },
+    { t:"Each course is cleared before the next is served", skill:"Attention to Detail" },
+    { t:"Food descriptions from staff are accurate and enticing", skill:"Communication Clarity" },
+  ]},
+  { key:"problemresolution", name:"Problem Resolution", role:"Management", questions:[
+    { t:"Manager checked in frequently throughout the visit", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Issues are addressed promptly and professionally", skill:"Conflict Resolution" },
+    { t:"Staff is empowered to resolve problems without excessive manager involvement", skill:"Adaptability" },
+    { t:"Solutions are appropriate to the situation", skill:"Conflict Resolution" },
+    { t:"Follow-up is conducted to ensure guest satisfaction", skill:"Conflict Resolution" },
+    { t:"Recovery efforts exceed expectations", skill:"Positive Attitude & Resilience" },
+  ]},
+  { key:"payment", name:"Payment Process", role:"Bartender/Server", questions:[
+    { t:"Check presentation is discreet and professional", skill:"Professionalism & Appearance" },
+    { t:"Payment processing is efficient and accurate", skill:"Attention to Detail" },
+    { t:"Receipt is presented in a professional manner", skill:"Professionalism & Appearance" },
+    { t:"Staff thanks guests by name upon departure", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Host/serving staff acknowledges departing guests", skill:"Guest Engagement & Hospitality Mindset" },
+  ]},
+  { key:"overallexp", name:"Overall Experience", role:"", questions:[
+    { t:"Experience delivers on brand promise", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Service is consistent across all touchpoints", skill:"Attention to Detail" },
+    { t:"Ambiance, food, and service create a cohesive experience", skill:"Teamwork & Collaboration" },
+    { t:"Restaurant distinguishes itself from competitors", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Experience justifies the price point", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Staff creates a memorable experience worth returning for", skill:"Positive Attitude & Resilience" },
+  ]},
+];
+
+const UMI_EXTRA_SECTIONS = [
+  { key:"sushibar", name:"Sushi Bar Experience", role:"Sushi Chef/Itamae", questions:[
+    { t:"Sushi chef greeted guests seated at the bar warmly", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Sushi chef is professionally groomed in a clean uniform/apron", skill:"Professionalism & Appearance" },
+    { t:"Knife skills and preparation technique were precise and confident", skill:"Attention to Detail" },
+    { t:"Rice temperature and seasoning were properly executed", skill:"Attention to Detail" },
+    { t:"Fish/seafood appeared fresh, properly cut, and well-presented", skill:"Attention to Detail" },
+    { t:"Sushi chef explained ingredients, preparation, or omakase courses knowledgeably", skill:"Communication Clarity" },
+    { t:"Sushi chef paced courses appropriately for the guest", skill:"Time Management" },
+    { t:"Sushi chef engaged guests with genuine interest and conversation when appropriate", skill:"Active Listening" },
+  ]},
+  { key:"barservice", name:"Bar Service", role:"Bartender", questions:[
+    { t:"Guest greeted at the bar with a smile, eye contact, and pleasant salutation", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Bartender offered a food/drink menu promptly", skill:"Attention to Detail" },
+    { t:"Bartender demonstrated craft cocktail and sake/beverage knowledge", skill:"Communication Clarity" },
+    { t:"Proper pour method used (jigger, correct proportions)", skill:"Attention to Detail" },
+    { t:"Glassware appropriate and spotless for each beverage", skill:"Attention to Detail" },
+    { t:"Suggestive selling or a thoughtful pairing recommendation was offered", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"ID checked for any guest appearing under the age of 30", skill:"Professionalism & Appearance" },
+    { t:"Bartender maintained the bar area (clean, organized, stocked) throughout the visit", skill:"Attention to Detail" },
+    { t:"Tab/check handled accurately and presented professionally", skill:"Professionalism & Appearance" },
+  ]},
+];
+
+const FINE_DINING_ROLE_ROLLUPS = [
+  { label:"Overall Restaurant Score", sections:["diningroom"] },
+  { label:"Overall Food and Beverage Score", sections:["culinary"] },
+  { label:"Server/Bartender Score", sections:["tablesetting","servicestandards","beverageprogram","payment"] },
+  { label:"Hosting Staff Score", sections:["reservation","arrival"] },
+  { label:"Bussing Staff Score", sections:["staffappearance","beverageprogram"] },
+  { label:"Management Score", sections:["problemresolution","overallexp"] },
+  { label:"Expeditor Score", sections:["staffappearance"] },
+  { label:"Overall Facilities/Operations Score", sections:["diningroom"] },
+  { label:"Overall Experience Score", sections:["overallexp"] },
+];
+const UMI_ROLE_ROLLUPS = FINE_DINING_ROLE_ROLLUPS.concat([
+  { label:"Sushi Chef", sections:["sushibar"] },
+  { label:"Bar Service", sections:["barservice"] },
+]);
+
+/* =========================================================================
+   CASUAL DINING STANDARD
+   Lighter-weight table-service standard (1-5 scale, "enter 5 if N/A", same
+   as fine dining) for full-service concepts that are more casual than a
+   Forbes/AAA 4 Diamond restaurant. Shared by 1882 Cantina and Kelsey's,
+   each with its own added bar module.
+   ========================================================================= */
+const CASUAL_DINING_SECTIONS = [
+  { key:"arrival", name:"Arrival & Seating", role:"Host Staff", questions:[
+    { t:"Guest greeted within 60 seconds of arrival", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Host/hostess was friendly, made eye contact, and smiled", skill:"Positive Attitude & Resilience" },
+    { t:"Wait time, if any, was quoted accurately", skill:"Communication Clarity" },
+    { t:"Seating was prompt and matched party size/seating preference", skill:"Time Management" },
+    { t:"Menus were presented promptly upon seating", skill:"Attention to Detail" },
+  ]},
+  { key:"ambiance", name:"Dining Room & Cleanliness", role:"Restaurant/Facilities", questions:[
+    { t:"Floors, tables, and booths were clean and well maintained", skill:"Attention to Detail" },
+    { t:"Restrooms were clean, stocked, and monitored", skill:"Attention to Detail" },
+    { t:"Music/TV volume was appropriate for the atmosphere", skill:"Attention to Detail" },
+    { t:"Temperature was comfortable throughout the dining room", skill:"Attention to Detail" },
+    { t:"Furniture and d\u00e9cor were clean, in good condition, and inviting", skill:"Attention to Detail" },
+  ]},
+  { key:"staffappearance", name:"Staff Appearance & Demeanor", role:"Bus Person/Expeditor", questions:[
+    { t:"Staff members were professionally groomed and in clean attire", skill:"Professionalism & Appearance" },
+    { t:"Staff moved with purpose and efficiency", skill:"Time Management" },
+    { t:"Teamwork was evident between front and back of house", skill:"Teamwork & Collaboration" },
+    { t:"Staff appeared genuinely pleased to serve guests", skill:"Positive Attitude & Resilience" },
+  ]},
+  { key:"servicestandards", name:"Service Standards", role:"Server", questions:[
+    { t:"Server greeted the table within 2-3 minutes of being seated", skill:"Time Management" },
+    { t:"Server introduced themselves and was warm and personable", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Server demonstrated solid knowledge of the menu and specials", skill:"Communication Clarity" },
+    { t:"Drink orders were taken and delivered promptly", skill:"Time Management" },
+    { t:"Server suggested appetizers, drink specials, or add-ons", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Order was repeated back to confirm accuracy", skill:"Attention to Detail" },
+    { t:"Server checked back on the table shortly after food delivery", skill:"Active Listening" },
+    { t:"Table was bussed and kept clear throughout the visit", skill:"Attention to Detail" },
+    { t:"Server was attentive without being intrusive", skill:"Active Listening" },
+    { t:"Server displayed a friendly, upbeat attitude throughout", skill:"Positive Attitude & Resilience" },
+  ]},
+  { key:"foodbeverage", name:"Food & Beverage Quality", role:"Overall Food & Beverage", questions:[
+    { t:"Food arrived within a reasonable time for a casual dining pace", skill:"Time Management" },
+    { t:"Order was accurate and matched what was requested", skill:"Attention to Detail" },
+    { t:"Food was hot, fresh, and properly prepared", skill:"Attention to Detail" },
+    { t:"Portion sizes were appropriate for the price point", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Food presentation was appealing for a casual dining setting", skill:"Attention to Detail" },
+  ]},
+  { key:"problemresolution", name:"Problem Resolution", role:"Management", questions:[
+    { t:"A manager was visible and available on the floor", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Any issues raised were addressed promptly and professionally", skill:"Conflict Resolution" },
+    { t:"Staff was empowered to make it right without unnecessary delay", skill:"Adaptability" },
+  ]},
+  { key:"payment", name:"Payment & Departure", role:"Server", questions:[
+    { t:"Check was accurate and easy to understand", skill:"Attention to Detail" },
+    { t:"Payment was processed quickly and correctly", skill:"Time Management" },
+    { t:"Guest was thanked and invited to return", skill:"Guest Engagement & Hospitality Mindset" },
+  ]},
+  { key:"overallexp", name:"Overall Experience", role:"", questions:[
+    { t:"Staff created a fun, welcoming atmosphere true to a casual dining visit", skill:"Positive Attitude & Resilience" },
+    { t:"Team worked well together throughout the visit", skill:"Teamwork & Collaboration" },
+    { t:"Overall experience felt like a good value for a casual dining price point", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Guest would return to and/or recommend this restaurant", skill:"Guest Engagement & Hospitality Mindset" },
+  ]},
+];
+
+const CANTINA_EXTRA_SECTIONS = [
+  { key:"cantinabar", name:"Cantina Bar", role:"Bartender", questions:[
+    { t:"Guest greeted promptly with a smile at the bar", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Bartender was knowledgeable about tequila, mezcal, and specialty margarita options", skill:"Communication Clarity" },
+    { t:"Chips, salsa, or a starter was offered promptly if applicable", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Proper pour method and measured pours were used", skill:"Attention to Detail" },
+    { t:"Drinks were presented well (correct glassware, rim, garnish)", skill:"Attention to Detail" },
+    { t:"Suggestive selling or a top-shelf upgrade was offered", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"ID checked for any guest appearing under the age of 30", skill:"Professionalism & Appearance" },
+    { t:"Bar area was clean, organized, and well stocked", skill:"Attention to Detail" },
+    { t:"Tab/check was handled accurately and presented professionally", skill:"Professionalism & Appearance" },
+  ]},
+];
+
+const KELSEYS_EXTRA_SECTIONS = [
+  { key:"sportsbar", name:"Sports Bar Experience", role:"Bartender/Server", questions:[
+    { t:"TVs were tuned to relevant or requested games with appropriate sound", skill:"Attention to Detail" },
+    { t:"Staff proactively offered to change the channel or volume on request", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Staff offered score or game updates in a friendly, natural way", skill:"Active Listening" },
+    { t:"Bar and seating area was organized and comfortable even during a busy game", skill:"Time Management" },
+    { t:"Game-day food and drink specials were communicated clearly", skill:"Communication Clarity" },
+    { t:"Shareables/appetizers for the table were served promptly", skill:"Time Management" },
+    { t:"Beer, cocktail, and non-alcoholic options were varied and well stocked", skill:"Attention to Detail" },
+    { t:"Proper pour method and measured pours were used", skill:"Attention to Detail" },
+    { t:"ID checked for any guest appearing under the age of 30", skill:"Professionalism & Appearance" },
+    { t:"Tab/check was handled accurately, even during a busy rush", skill:"Professionalism & Appearance" },
+  ]},
+];
+
+const CASUAL_DINING_ROLE_ROLLUPS = [
+  { label:"Overall Restaurant Score", sections:["ambiance"] },
+  { label:"Overall Food and Beverage Score", sections:["foodbeverage"] },
+  { label:"Server/Bartender Score", sections:["servicestandards","payment"] },
+  { label:"Hosting Staff Score", sections:["arrival"] },
+  { label:"Bussing Staff Score", sections:["staffappearance"] },
+  { label:"Management Score", sections:["problemresolution","overallexp"] },
+  { label:"Expeditor Score", sections:["staffappearance"] },
+  { label:"Overall Facilities/Operations Score", sections:["ambiance"] },
+  { label:"Overall Experience Score", sections:["overallexp"] },
+];
+const CANTINA_ROLE_ROLLUPS = CASUAL_DINING_ROLE_ROLLUPS.concat([
+  { label:"Bar Service", sections:["cantinabar"] },
+]);
+const KELSEYS_ROLE_ROLLUPS = CASUAL_DINING_ROLE_ROLLUPS.concat([
+  { label:"Bar Service", sections:["sportsbar"] },
+]);
+
+/* Maps each outlet to its standard, and each fine-dining standard to its
+   section list + role roll-up definitions. */
+const OUTLET_STANDARD = {
+  "Pronto":"quick_service","Agave":"quick_service","American Classics":"quick_service",
+  "Pechanga Fried Chicken":"quick_service","Cafe Cocoa's":"quick_service","Caf\u00e9 Cocoa's":"quick_service",
+  "Little Wok":"quick_service","Portable Smart Bar":"quick_service",
+  "Great Oak Steakhouse":"fine_dining","Pisano's Italiano":"fine_dining",
+  "Umi Sushi":"umi_sushi",
+  "1882 Cantina":"cantina","Kelsey's":"kelseys",
+};
+const STANDARDS = {
+  fine_dining: { scoreType:"scale5", sections: FINE_DINING_SECTIONS, roleRollups: FINE_DINING_ROLE_ROLLUPS },
+  umi_sushi:   { scoreType:"scale5", sections: FINE_DINING_SECTIONS.concat(UMI_EXTRA_SECTIONS), roleRollups: UMI_ROLE_ROLLUPS },
+  cantina:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(CANTINA_EXTRA_SECTIONS), roleRollups: CANTINA_ROLE_ROLLUPS },
+  kelseys:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(KELSEYS_EXTRA_SECTIONS), roleRollups: KELSEYS_ROLE_ROLLUPS },
+};
+
+/* =========================================================================
    SOP ACTION THRESHOLDS (from F&B - MGMT - 013 Mystery Shopper Guidelines)
    ========================================================================= */
 function actionForScore(pct){
@@ -622,6 +964,20 @@ function actionForScore(pct){
     guidance:"Issue a verbal warning to the individuals named in the report. Review details of the visit, and if a whole category scored here, build an action plan (training, work order, purchase request) for the Assistant Director of F&B or Training Manager." };
   return { key:"written", label:pct.toFixed(0)+"% \u2014 Written warning required", pillClass:"pill-red", chip:"chip-red",
     guidance:"Unacceptable score \u2014 remedy immediately. Issue a written warning to the individuals named, counsel them, and complete an action plan. Report status to the Assistant Director of F&B and involve the Training Manager as needed." };
+}
+
+/* Fine dining / Umi Sushi: simple Pass/Fail at 80%, per the Forbes/AAA
+   4 Diamond standard this was built from. */
+function passFailForScore(pct){
+  if (pct === null) return { key:"none", label:"Answer questions to calculate", pillClass:"", chip:"" };
+  if (pct >= 80) return { key:"pass", label:pct.toFixed(0)+"% \u2014 PASS", pillClass:"pill-green", chip:"chip-green",
+    guidance:"Meets the Forbes Travel Guide / AAA 4 Diamond standard. Review the report with the team and highlight what to keep doing." };
+  return { key:"fail", label:pct.toFixed(0)+"% \u2014 FAIL", pillClass:"pill-red", chip:"chip-red",
+    guidance:"Below the 80% threshold for this standard. Build an action plan for the sections and roles that scored lowest, and review with the team." };
+}
+/* Unified dispatcher so shared UI code doesn't need to branch everywhere. */
+function bandForScore(standardKey, pct){
+  return STANDARDS[standardKey] ? passFailForScore(pct) : actionForScore(pct);
 }
 
 /* =========================================================================
@@ -694,55 +1050,121 @@ function initApp(){
 }
 
 /* ---------------- BUILD NEW-EVAL SECTIONS ---------------- */
-function buildSections(showBar){
+let currentStandard = "quick_service";
+
+function buildSections(outlet){
   currentState = {};
   const container = document.getElementById('sections-container');
   container.innerHTML = "";
-  SECTION_TEMPLATE.forEach(section=>{
-    if (section.barOnly && !showBar) return;
-    const panel = document.createElement('div');
-    panel.className = "panel section-block";
-    panel.innerHTML = `
-      <div class="section-head">
-        <h3>${section.name}</h3>
-        <span class="section-score" id="score-${section.key}">0/0</span>
+  const standardKey = OUTLET_STANDARD[outlet] || "quick_service";
+  currentStandard = standardKey;
+
+  if (standardKey === "quick_service"){
+    const showBar = outlet === "Portable Smart Bar";
+    SECTION_TEMPLATE.forEach(section=>{
+      if (section.barOnly && !showBar) return;
+      buildBinarySectionPanel(section, container);
+    });
+  } else {
+    STANDARDS[standardKey].sections.forEach(section=> buildScaleSectionPanel(section, container));
+  }
+  recalcLiveScore();
+}
+
+function buildBinarySectionPanel(section, container){
+  const panel = document.createElement('div');
+  panel.className = "panel section-block";
+  panel.innerHTML = `
+    <div class="section-head">
+      <h3>${section.name}</h3>
+      <span class="section-score" id="score-${section.key}">0/0</span>
+    </div>
+    <div id="qwrap-${section.key}"></div>
+    <div class="field" style="margin-top:14px;">
+      <label>${section.name} Comments</label>
+      <textarea id="comment-${section.key}" placeholder="Narrative detail for this section&hellip;"></textarea>
+    </div>
+  `;
+  container.appendChild(panel);
+  const qwrap = panel.querySelector(`#qwrap-${section.key}`);
+  section.questions.forEach((q, idx)=>{
+    const qid = `${section.key}-${idx}`;
+    currentState[qid] = { answer: null, skill: q.skill, section: section.key, text: q.t, note: "" };
+    const row = document.createElement('div');
+    row.className = "qrow";
+    row.innerHTML = `
+      <div>
+        <div class="qtext">${q.t}</div>
+        <div class="qtag">${q.skill}</div>
+        <div class="note-line" id="note-wrap-${qid}" style="display:none;">
+          <input type="text" placeholder="What did they say/do? (optional quote or note)" oninput="setNote('${qid}', this.value)">
+        </div>
       </div>
-      <div id="qwrap-${section.key}"></div>
-      <div class="field" style="margin-top:14px;">
-        <label>${section.name} Comments</label>
-        <textarea id="comment-${section.key}" placeholder="Narrative detail for this section&hellip;"></textarea>
+      <div class="answer-btns">
+        <button id="btn-${qid}-yes" onclick="setAnswer('${qid}','${section.key}','yes')">Yes</button>
+        <button id="btn-${qid}-no" onclick="setAnswer('${qid}','${section.key}','no')">No</button>
+        <button id="btn-${qid}-na" onclick="setAnswer('${qid}','${section.key}','na')">N/A</button>
       </div>
     `;
-    container.appendChild(panel);
-    const qwrap = panel.querySelector(`#qwrap-${section.key}`);
-    section.questions.forEach((q, idx)=>{
-      const qid = `${section.key}-${idx}`;
-      currentState[qid] = { answer: null, skill: q.skill, section: section.key, text: q.t, note: "" };
-      const row = document.createElement('div');
-      row.className = "qrow";
-      row.innerHTML = `
-        <div>
-          <div class="qtext">${q.t}</div>
-          <div class="qtag">${q.skill}</div>
-          <div class="note-line" id="note-wrap-${qid}" style="display:none;">
-            <input type="text" placeholder="What did they say/do? (optional quote or note)" oninput="setNote('${qid}', this.value)">
-          </div>
-        </div>
-        <div class="answer-btns">
-          <button id="btn-${qid}-yes" onclick="setAnswer('${qid}','${section.key}','yes')">Yes</button>
-          <button id="btn-${qid}-no" onclick="setAnswer('${qid}','${section.key}','no')">No</button>
-          <button id="btn-${qid}-na" onclick="setAnswer('${qid}','${section.key}','na')">N/A</button>
-        </div>
-      `;
-      qwrap.appendChild(row);
-    });
+    qwrap.appendChild(row);
   });
-  recalcLiveScore();
+}
+
+function buildScaleSectionPanel(section, container){
+  const panel = document.createElement('div');
+  panel.className = "panel section-block";
+  const roleTag = section.role ? ` <span class="role-chip">${section.role}</span>` : "";
+  panel.innerHTML = `
+    <div class="section-head">
+      <h3>${section.name}${roleTag}</h3>
+      <span class="section-score" id="score-${section.key}">\u2014 /5</span>
+    </div>
+    <div id="qwrap-${section.key}"></div>
+    <div class="field" style="margin-top:14px;">
+      <label>${section.name} Comments</label>
+      <textarea id="comment-${section.key}" placeholder="Narrative detail for this section&hellip;"></textarea>
+    </div>
+  `;
+  container.appendChild(panel);
+  const qwrap = panel.querySelector(`#qwrap-${section.key}`);
+  section.questions.forEach((q, idx)=>{
+    const qid = `${section.key}-${idx}`;
+    currentState[qid] = { answer: null, skill: q.skill, section: section.key, text: q.t, note: "" };
+    const row = document.createElement('div');
+    row.className = "qrow";
+    const btns = [1,2,3,4,5].map(n=>`<button id="btn-${qid}-${n}" onclick="setScaleAnswer('${qid}','${section.key}',${n})">${n}</button>`).join("")
+      + `<button id="btn-${qid}-na" class="na-btn" onclick="setScaleAnswer('${qid}','${section.key}','na')">N/A</button>`;
+    row.innerHTML = `
+      <div>
+        <div class="qtext">${q.t}</div>
+        <div class="qtag">${q.skill}</div>
+        <div class="note-line" id="note-wrap-${qid}" style="display:none;">
+          <input type="text" placeholder="What did they say/do? (optional quote or note)" oninput="setNote('${qid}', this.value)">
+        </div>
+      </div>
+      <div class="scale-btns">${btns}</div>
+    `;
+    qwrap.appendChild(row);
+  });
 }
 
 function onOutletChange(){
   const outlet = document.getElementById('f-outlet').value;
-  buildSections(outlet === "Portable Smart Bar");
+  const standardKey = OUTLET_STANDARD[outlet] || "quick_service";
+  document.getElementById('areaFocusField').style.display = (standardKey === "umi_sushi") ? "block" : "none";
+  const subEl = document.getElementById('outletSub');
+  if (standardKey === "quick_service"){
+    subEl.textContent = "Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.";
+  } else if (standardKey === "fine_dining"){
+    subEl.textContent = "Evaluated against the Forbes Travel Guide / AAA 4 Diamond fine dining standard \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+  } else if (standardKey === "umi_sushi"){
+    subEl.textContent = "Fine dining standard plus dedicated Sushi Bar and Bar Service sections \u2014 scored 1-5 per question (or N/A if it doesn't apply). Use Area Evaluated if this visit focused on one area.";
+  } else if (standardKey === "cantina"){
+    subEl.textContent = "Casual dining standard plus a dedicated Cantina Bar section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+  } else if (standardKey === "kelseys"){
+    subEl.textContent = "Casual dining standard plus a dedicated Sports Bar Experience section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+  }
+  buildSections(outlet);
 }
 
 function setNote(qid, val){
@@ -760,32 +1182,70 @@ function setAnswer(qid, sectionKey, val){
   recalcLiveScore();
 }
 
-function recalcSectionScore(sectionKey){
-  let pts=0, max=0;
-  Object.values(currentState).forEach(q=>{
-    if (q.section !== sectionKey) return;
-    if (q.answer === 'na' || q.answer === null) return;
-    max += 1;
-    if (q.answer === 'yes') pts += 1;
+function setScaleAnswer(qid, sectionKey, val){
+  currentState[qid].answer = val;
+  [1,2,3,4,5,'na'].forEach(v=>{
+    document.getElementById(`btn-${qid}-${v}`).classList.remove('sel-1','sel-2','sel-3','sel-4','sel-5','sel-na');
   });
+  document.getElementById(`btn-${qid}-${val}`).classList.add(typeof val === 'number' ? 'sel-'+val : 'sel-na');
+  document.getElementById(`note-wrap-${qid}`).style.display = (typeof val === 'number' && val<=3) ? 'block' : 'none';
+  recalcSectionScore(sectionKey);
+  recalcLiveScore();
+}
+
+function recalcSectionScore(sectionKey){
   const el = document.getElementById(`score-${sectionKey}`);
-  if (el) el.textContent = `${pts}/${max}`;
+  if (!el) return;
+  if (currentStandard === "quick_service"){
+    let pts=0, max=0;
+    Object.values(currentState).forEach(q=>{
+      if (q.section !== sectionKey) return;
+      if (q.answer === 'na' || q.answer === null) return;
+      max += 1;
+      if (q.answer === 'yes') pts += 1;
+    });
+    el.textContent = `${pts}/${max}`;
+  } else {
+    let sum=0, cnt=0;
+    Object.values(currentState).forEach(q=>{
+      if (q.section !== sectionKey) return;
+      if (q.answer === null || q.answer === undefined || q.answer === 'na') return;
+      sum += q.answer; cnt += 1;
+    });
+    el.textContent = cnt ? (sum/cnt).toFixed(1)+' /5' : '\u2014 /5';
+  }
 }
 
 function recalcLiveScore(){
-  let pts=0, max=0;
-  Object.values(currentState).forEach(q=>{
-    if (q.answer === 'na' || q.answer === null) return;
-    max += 1;
-    if (q.answer === 'yes') pts += 1;
-  });
-  const pct = max > 0 ? (pts/max*100) : null;
-  document.getElementById('liveScoreNum').textContent = pct===null ? '\u2014' : pct.toFixed(0)+'%';
-  const action = actionForScore(pct);
-  const pill = document.getElementById('liveActionPill');
-  pill.className = "action-pill " + (action.pillClass||"");
-  pill.textContent = action.label;
-  return { pts, max, pct, action };
+  if (currentStandard === "quick_service"){
+    let pts=0, max=0;
+    Object.values(currentState).forEach(q=>{
+      if (q.answer === 'na' || q.answer === null) return;
+      max += 1;
+      if (q.answer === 'yes') pts += 1;
+    });
+    const pct = max > 0 ? (pts/max*100) : null;
+    document.getElementById('liveScoreNum').textContent = pct===null ? '\u2014' : pct.toFixed(0)+'%';
+    const action = actionForScore(pct);
+    const pill = document.getElementById('liveActionPill');
+    pill.className = "action-pill " + (action.pillClass||"");
+    pill.textContent = action.label;
+    return { pts, max, pct, action, standard: currentStandard };
+  } else {
+    let sum=0, cnt=0;
+    Object.values(currentState).forEach(q=>{
+      if (q.answer === null || q.answer === undefined || q.answer === 'na') return;
+      sum += q.answer; cnt += 1;
+    });
+    const avg = cnt ? sum/cnt : null;
+    const pct = avg===null ? null : (avg/5*100);
+    document.getElementById('liveScoreNum').textContent = avg===null ? '\u2014' : avg.toFixed(2)+' /5';
+    const action = passFailForScore(pct);
+    const pill = document.getElementById('liveActionPill');
+    pill.className = "action-pill " + (action.pillClass||"");
+    pill.textContent = action.label;
+    return { sum, cnt, avg, pct, action, standard: currentStandard };
+  }
 }
 
 /* ---------------- SUBMIT ---------------- */
@@ -795,47 +1255,99 @@ function submitEvaluation(){
   const date = document.getElementById('f-date').value;
   if (!date){ toast("Please enter a visit date."); return; }
 
-  const { pts, max, pct, action } = recalcLiveScore();
-  if (max === 0){ toast("Answer at least one question before saving."); return; }
+  const standardKey = OUTLET_STANDARD[outlet] || "quick_service";
+  const live = recalcLiveScore();
+  let record;
 
-  const sections = SECTION_TEMPLATE
-    .filter(s => !s.barOnly || outlet === "Portable Smart Bar")
-    .map(s=>{
-      let spts=0, smax=0;
+  if (standardKey === "quick_service"){
+    const { pts, max, pct, action } = live;
+    if (max === 0){ toast("Answer at least one question before saving."); return; }
+
+    const sections = SECTION_TEMPLATE
+      .filter(s => !s.barOnly || outlet === "Portable Smart Bar")
+      .map(s=>{
+        let spts=0, smax=0;
+        const qs = s.questions.map((q,idx)=>{
+          const qid = `${s.key}-${idx}`;
+          const st = currentState[qid];
+          if (st.answer !== 'na' && st.answer !== null){
+            smax += 1;
+            if (st.answer === 'yes') spts += 1;
+          }
+          return { text: q.t, skill: q.skill, answer: st.answer, note: st.note || "" };
+        });
+        return {
+          key: s.key, name: s.name, points: spts, max: smax,
+          comment: document.getElementById(`comment-${s.key}`).value || "",
+          questions: qs
+        };
+      });
+
+    record = {
+      standard: "quick_service",
+      outlet, date,
+      day: document.getElementById('f-day').value,
+      timeIn: document.getElementById('f-timein').value,
+      timeOut: document.getElementById('f-timeout').value,
+      shopperName: document.getElementById('f-shopper').value,
+      teamMembers: document.getElementById('f-teammembers').value,
+      managerOnDuty: document.getElementById('f-manager').value,
+      overallComments: document.getElementById('f-overallcomments').value,
+      points: pts, max: max, percent: Math.round(pct*10)/10,
+      actionKey: action.key, sections,
+      actionPlan: { signed: false, signedDate: "", notes: "" },
+      createdAt: Date.now()
+    };
+  } else {
+    const { avg, pct, action } = live;
+    if (avg === null){ toast("Answer at least one question before saving."); return; }
+
+    const std = STANDARDS[standardKey];
+    const sections = std.sections.map(s=>{
+      let ssum=0, scnt=0;
       const qs = s.questions.map((q,idx)=>{
         const qid = `${s.key}-${idx}`;
         const st = currentState[qid];
-        if (st.answer !== 'na' && st.answer !== null){
-          smax += 1;
-          if (st.answer === 'yes') spts += 1;
-        }
+        if (st.answer !== null && st.answer !== undefined && st.answer !== 'na'){ scnt += 1; ssum += st.answer; }
         return { text: q.t, skill: q.skill, answer: st.answer, note: st.note || "" };
       });
       return {
-        key: s.key, name: s.name, points: spts, max: smax,
+        key: s.key, name: s.name, role: s.role || "",
+        avg: scnt ? Math.round((ssum/scnt)*100)/100 : null, count: scnt,
         comment: document.getElementById(`comment-${s.key}`).value || "",
         questions: qs
       };
     });
 
-  const record = {
-    outlet,
-    date,
-    day: document.getElementById('f-day').value,
-    timeIn: document.getElementById('f-timein').value,
-    timeOut: document.getElementById('f-timeout').value,
-    shopperName: document.getElementById('f-shopper').value,
-    teamMembers: document.getElementById('f-teammembers').value,
-    managerOnDuty: document.getElementById('f-manager').value,
-    overallComments: document.getElementById('f-overallcomments').value,
-    points: pts,
-    max: max,
-    percent: Math.round(pct*10)/10,
-    actionKey: action.key,
-    sections,
-    actionPlan: { signed: false, signedDate: "", notes: "" },
-    createdAt: Date.now()
-  };
+    const sectionByKey = {}; sections.forEach(s=> sectionByKey[s.key]=s);
+    const roleRollups = std.roleRollups.map(rr=>{
+      let sum=0, cnt=0;
+      rr.sections.forEach(skey=>{
+        const sec = sectionByKey[skey];
+        (sec ? sec.questions : []).forEach(q=>{
+          if (q.answer !== null && q.answer !== undefined && q.answer !== 'na'){ sum += q.answer; cnt += 1; }
+        });
+      });
+      return { label: rr.label, avg: cnt ? Math.round((sum/cnt)*100)/100 : null };
+    });
+
+    record = {
+      standard: standardKey,
+      outlet, date,
+      day: document.getElementById('f-day').value,
+      timeIn: document.getElementById('f-timein').value,
+      timeOut: document.getElementById('f-timeout').value,
+      shopperName: document.getElementById('f-shopper').value,
+      teamMembers: document.getElementById('f-teammembers').value,
+      managerOnDuty: document.getElementById('f-manager').value,
+      areaFocus: standardKey === "umi_sushi" ? document.getElementById('f-areafocus').value : "",
+      overallComments: document.getElementById('f-overallcomments').value,
+      overallAvg: Math.round(avg*100)/100, percent: Math.round(pct*10)/10,
+      actionKey: action.key, sections, roleRollups,
+      actionPlan: { signed: false, signedDate: "", notes: "" },
+      createdAt: Date.now()
+    };
+  }
 
   if (!firebaseReady){
     toast("Firebase isn't configured yet \u2014 paste your project config in the code to save.");
@@ -861,7 +1373,9 @@ function resetForm(){
   document.getElementById('f-teammembers').value = "";
   document.getElementById('f-manager').value = "";
   document.getElementById('f-overallcomments').value = "";
-  buildSections(false);
+  document.getElementById('areaFocusField').style.display = "none";
+  document.getElementById('outletSub').textContent = "Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.";
+  buildSections("");
 }
 
 /* ---------------- LOAD / HISTORY ---------------- */
@@ -892,8 +1406,8 @@ function renderHistory(){
   const statRow = document.getElementById('statRow');
   const total = allEvals.length;
   const avg = total ? (allEvals.reduce((a,r)=>a+r.percent,0)/total) : 0;
-  const needsAction = allEvals.filter(r=>r.actionKey==='verbal'||r.actionKey==='written').length;
-  const unsigned = allEvals.filter(r=> (r.actionKey==='verbal'||r.actionKey==='written'||r.actionKey==='acceptable') && !(r.actionPlan&&r.actionPlan.signed)).length;
+  const needsAction = allEvals.filter(r=>r.actionKey==='verbal'||r.actionKey==='written'||r.actionKey==='fail').length;
+  const unsigned = allEvals.filter(r=> r.actionKey!=='celebrate' && !(r.actionPlan&&r.actionPlan.signed)).length;
   statRow.innerHTML = `
     <div class="stat-card"><div class="k">Total Evaluations</div><div class="v">${total}</div></div>
     <div class="stat-card"><div class="k">Average Score</div><div class="v">${total? avg.toFixed(1):'0'}<small>%</small></div></div>
@@ -909,15 +1423,16 @@ function renderHistory(){
   } else {
     emptyEl.style.display = "none";
     rows.forEach(r=>{
-      const action = actionForScore(r.percent);
+      const action = bandForScore(r.standard, r.percent);
       const tr = document.createElement('tr');
       tr.onclick = ()=>openModal(r.id);
       const signedText = r.actionKey==='celebrate' ? '&mdash;' : (r.actionPlan && r.actionPlan.signed ? 'Signed' : 'Pending');
+      const scoreText = STANDARDS[r.standard] ? `${r.overallAvg}/5` : `${r.percent}%`;
       tr.innerHTML = `
         <td>${r.date||''}</td>
-        <td>${r.outlet||''}</td>
+        <td>${r.outlet||''}${r.areaFocus && r.areaFocus!=='Full Visit' ? ' <span class="standard-badge" style="background:var(--gold-500);color:var(--navy-950);">'+r.areaFocus+'</span>' : ''}</td>
         <td>${r.shopperName||'&mdash;'}</td>
-        <td><span class="score-chip ${action.chip}">${r.percent}%</span></td>
+        <td><span class="score-chip ${action.chip}">${scoreText}</span></td>
         <td>${bandLabel(r.actionKey)}</td>
         <td>${signedText}</td>
       `;
@@ -929,7 +1444,8 @@ function renderHistory(){
 }
 
 function bandLabel(key){
-  return { celebrate:"Celebrate", acceptable:"Acceptable", verbal:"Verbal Warning", written:"Written Warning" }[key] || "";
+  return { celebrate:"Celebrate", acceptable:"Acceptable", verbal:"Verbal Warning", written:"Written Warning",
+           pass:"Pass", fail:"Fail" }[key] || "";
 }
 
 function renderTrendChart(rows){
@@ -973,8 +1489,14 @@ function renderSkillsInsights(){
       (sec.questions||[]).forEach(q=>{
         if (q.answer==='na' || q.answer===null || q.answer===undefined) return;
         if (!tally[q.skill]) tally[q.skill] = { pts:0, max:0 };
-        tally[q.skill].max += 1;
-        if (q.answer === 'yes') tally[q.skill].pts += 1;
+        if (typeof q.answer === 'number'){
+          // fine dining / Umi: 1-5 scale, normalized to a 0-1 ratio like Yes/No
+          tally[q.skill].max += 1;
+          tally[q.skill].pts += (q.answer/5);
+        } else {
+          tally[q.skill].max += 1;
+          if (q.answer === 'yes') tally[q.skill].pts += 1;
+        }
       });
     });
   });
@@ -1021,9 +1543,10 @@ function openModal(id){
   const r = allEvals.find(e=>e.id===id);
   if (!r) return;
   selectedEvalId = id;
-  document.getElementById('modalOutlet').textContent = r.outlet;
-  document.getElementById('modalTitle').textContent = `${r.date}  \u2014  ${r.percent}%`;
-  const action = actionForScore(r.percent);
+  const isFineDining = !!STANDARDS[r.standard];
+  document.getElementById('modalOutlet').textContent = r.outlet + (r.areaFocus && r.areaFocus!=='Full Visit' ? ' \u2014 '+r.areaFocus : '');
+  document.getElementById('modalTitle').textContent = isFineDining ? `${r.date}  \u2014  ${r.overallAvg}/5  (${r.percent}%)` : `${r.date}  \u2014  ${r.percent}%`;
+  const action = bandForScore(r.standard, r.percent);
 
   let html = `<div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:#6a6552;margin-bottom:4px;">
     <div>Shopper: <strong style="color:var(--ink)">${r.shopperName||'\u2014'}</strong></div>
@@ -1032,12 +1555,28 @@ function openModal(id){
     <div>Time: <strong style="color:var(--ink)">${r.timeIn||'\u2014'} \u2013 ${r.timeOut||'\u2014'}</strong></div>
   </div>`;
 
+  if (isFineDining && (r.roleRollups||[]).length){
+    html += `<div class="rpt-section-title">Role Roll-Up</div><div style="margin-bottom:6px;">` +
+      r.roleRollups.map(rr=> `<span class="role-chip">${rr.label}: <b>${rr.avg===null?'\u2014':rr.avg.toFixed(1)}/5</b></span>`).join("") +
+      `</div>`;
+  }
+
   (r.sections||[]).forEach(sec=>{
-    html += `<div class="rpt-section-title">${sec.name} \u2014 ${sec.points}/${sec.max}</div>`;
+    const secHeader = isFineDining
+      ? `${sec.name}${sec.role ? ' ('+sec.role+')' : ''} \u2014 ${sec.avg===null||sec.avg===undefined ? '\u2014' : sec.avg.toFixed(1)}/5`
+      : `${sec.name} \u2014 ${sec.points}/${sec.max}`;
+    html += `<div class="rpt-section-title">${secHeader}</div>`;
     sec.questions.forEach(q=>{
       const ans = q.answer;
-      const aClass = ans==='yes'?'a-yes':ans==='no'?'a-no':'a-na';
-      const aText = ans==='yes'?'Yes':ans==='no'?'No':'N/A';
+      let aClass, aText;
+      if (isFineDining){
+        if (ans === 'na'){ aClass = 'a-na'; aText = 'N/A'; }
+        else if (ans===null||ans===undefined){ aClass = 'a-na'; aText = '\u2014'; }
+        else { aClass = ans<=2?'a-no':ans>=4?'a-yes':''; aText = ans+' / 5'; }
+      } else {
+        aClass = ans==='yes'?'a-yes':ans==='no'?'a-no':'a-na';
+        aText = ans==='yes'?'Yes':ans==='no'?'No':'N/A';
+      }
       html += `<div class="rpt-q"><span>${q.text} <span class="qtag" style="margin-left:6px;">${q.skill}</span></span><span class="${aClass}">${aText}</span></div>`;
       if (q.note) html += `<div class="rpt-note">&ldquo;${q.note}&rdquo;</div>`;
     });
@@ -1047,7 +1586,7 @@ function openModal(id){
   if (r.overallComments) html += `<div class="rpt-section-title">Overall Comments</div><div class="rpt-comment">${r.overallComments}</div>`;
 
   html += `<div class="action-plan-box">
-    <div style="font-weight:700;font-size:13.5px;margin-bottom:4px;">SOP Guidance &mdash; ${action.label}</div>
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:4px;">${isFineDining?'Standard':'SOP'} Guidance &mdash; ${action.label}</div>
     <div style="font-size:12.5px;color:#5a5747;margin-bottom:10px;">${action.guidance||''}</div>`;
 
   if (r.actionKey !== 'celebrate'){
@@ -1109,7 +1648,7 @@ function downloadPDF(id){
     doc.text(value || "\u2014", marginX+128, y);
     y += 14;
   }
-  function questionRow(qtext, tagText, answer, note){
+  function questionRow(qtext, tagText, answer, note, isScale){
     const answerColW = 46;
     const qWidth = contentW - answerColW;
     doc.setFont("helvetica","normal"); doc.setFontSize(9.3);
@@ -1127,14 +1666,22 @@ function downloadPDF(id){
       doc.setFont("helvetica","italic"); doc.setFontSize(8); setC(GRAY);
       noteLines.forEach(l=>{ doc.text(l, marginX+6, y); y += 10.5; });
     }
-    const aColor = answer==='yes'?GREEN:answer==='no'?RED:GRAY;
-    const aText = answer==='yes'?'Yes':answer==='no'?'No':'N/A';
+    let aColor, aText;
+    if (isScale){
+      if (answer === 'na'){ aColor = GRAY; aText = "N/A"; }
+      else if (answer===null||answer===undefined){ aColor = GRAY; aText = "\u2014"; }
+      else { aColor = answer<=2 ? RED : answer>=4 ? GREEN : [178,140,58]; aText = answer + "/5"; }
+    } else {
+      aColor = answer==='yes'?GREEN:answer==='no'?RED:GRAY;
+      aText = answer==='yes'?'Yes':answer==='no'?'No':'N/A';
+    }
     doc.setFont("helvetica","bold"); doc.setFontSize(9.3); setC(aColor);
     doc.text(aText, marginX+contentW-answerColW+14, startY);
     y += 5;
   }
 
-  const action = actionForScore(r.percent);
+  const isFineDining = !!STANDARDS[r.standard];
+  const action = bandForScore(r.standard, r.percent);
 
   // ---- Title ----
   doc.setFont("helvetica","bold"); doc.setFontSize(17); setC(NAVY);
@@ -1143,7 +1690,7 @@ function downloadPDF(id){
   doc.text("Mystery Shopper Report \u2014 " + r.outlet, marginX, y); y += 22;
 
   // ---- Visit info ----
-  labelValueRow("Outlet:", r.outlet);
+  labelValueRow("Outlet:", r.outlet + (r.areaFocus && r.areaFocus!=='Full Visit' ? "  ("+r.areaFocus+")" : ""));
   labelValueRow("Date:", (r.date||"") + (r.day ? "  ("+r.day+")" : ""));
   labelValueRow("Time In / Out:", (r.timeIn||"\u2014") + "  \u2013  " + (r.timeOut||"\u2014"));
   labelValueRow("Shopper:", r.shopperName);
@@ -1156,17 +1703,35 @@ function downloadPDF(id){
   doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
   doc.roundedRect(marginX, y, contentW, 40, 3, 3, "F");
   doc.setFont("helvetica","bold"); doc.setFontSize(20); setC(GOLD);
-  doc.text(r.percent + "%", marginX+16, y+27);
+  doc.text(isFineDining ? (r.overallAvg+"/5") : (r.percent + "%"), marginX+16, y+27);
   doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
-  doc.text(bandLabel(r.actionKey) + "  (" + r.points + "/" + r.max + " points)", marginX+95, y+24);
+  const bannerRight = isFineDining ? (bandLabel(r.actionKey) + "  (" + r.percent + "%)") : (bandLabel(r.actionKey) + "  (" + r.points + "/" + r.max + " points)");
+  doc.text(bannerRight, marginX+95, y+24);
   y += 55;
-  paragraph("SOP Guidance: " + (action.guidance||""), { size:8.8, italic:true, color:GRAY });
+  paragraph((isFineDining?"Standard":"SOP") + " Guidance: " + (action.guidance||""), { size:8.8, italic:true, color:GRAY });
   y += 8;
+
+  // ---- Role roll-up (fine dining only) ----
+  if (isFineDining && (r.roleRollups||[]).length){
+    heading("ROLE ROLL-UP");
+    r.roleRollups.forEach(rr=>{
+      newPageIfNeeded(13);
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); setC(NAVY);
+      doc.text(rr.label + ":", marginX, y);
+      doc.setFont("helvetica","normal"); setC(INK);
+      doc.text(rr.avg===null?"\u2014":rr.avg.toFixed(1)+"/5", marginX+160, y);
+      y += 13;
+    });
+    y += 6;
+  }
 
   // ---- Sections ----
   (r.sections||[]).forEach(sec=>{
-    heading(sec.name.toUpperCase() + "  \u2014  " + sec.points + "/" + sec.max);
-    sec.questions.forEach(q=> questionRow(q.text, q.skill, q.answer, q.note));
+    const secTitle = isFineDining
+      ? sec.name.toUpperCase() + (sec.role ? "  ("+sec.role+")" : "") + "  \u2014  " + (sec.avg===null||sec.avg===undefined?"\u2014":sec.avg.toFixed(1)+"/5")
+      : sec.name.toUpperCase() + "  \u2014  " + sec.points + "/" + sec.max;
+    heading(secTitle);
+    sec.questions.forEach(q=> questionRow(q.text, q.skill, q.answer, q.note, isFineDining));
     if (sec.comment){ y += 2; paragraph(sec.comment, { italic:true, size:9, color:INK }); }
     y += 10;
   });
@@ -1199,7 +1764,8 @@ function downloadPDF(id){
     doc.setPage(i);
     doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setC(GRAY);
     doc.text("Pechanga Resort & Casino  |  Food Court Mystery Shopper", pageW-marginX, 28, { align:"right" });
-    doc.text("F&B - MGMT - 013-A   |   Page " + i + " of " + totalPages, pageW/2, pageH-22, { align:"center" });
+    const footerCode = isFineDining ? "Forbes/AAA 4 Diamond Standard" : "F&B - MGMT - 013-A";
+    doc.text(footerCode + "   |   Page " + i + " of " + totalPages, pageW/2, pageH-22, { align:"center" });
   }
 
   const safeOutlet = (r.outlet||"outlet").replace(/[^a-z0-9]+/gi,"_");
