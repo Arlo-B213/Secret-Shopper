@@ -462,6 +462,10 @@
   }
   .stat-card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-sm); }
   .stat-card:hover::before{ transform:scaleY(1); }
+  .stat-delta{ display:block; margin-top:6px; font-size:11.5px; font-weight:700; letter-spacing:.2px; }
+  .stat-delta.delta-up{ color:var(--green); }
+  .stat-delta.delta-down{ color:var(--red); }
+  .stat-delta.delta-flat{ color:#8a8368; }
 
   /* ---------- Table ---------- */
   table.evals tr{ transition:box-shadow .15s var(--ease), background .15s var(--ease); }
@@ -636,11 +640,31 @@
 
     <!-- ---------------- HISTORY VIEW ---------------- -->
     <div class="view" id="view-history">
+      <div class="filters" style="margin-bottom:18px;">
+        <select id="filterDateRange" onchange="renderHistory()">
+          <option value="">All Time</option>
+          <option value="30">Last 30 Days</option>
+          <option value="90">Last 90 Days</option>
+          <option value="365">Last 365 Days</option>
+        </select>
+      </div>
+
       <div class="stat-row" id="statRow"></div>
 
       <div class="chart-wrap">
         <h3 style="margin:0 0 12px;font-size:15px;color:var(--navy-800);">Score Trend by Outlet</h3>
         <canvas id="trendChart"></canvas>
+      </div>
+
+      <div class="grid2">
+        <div class="chart-wrap">
+          <h3 style="margin:0 0 12px;font-size:15px;color:var(--navy-800);">Average Score by Outlet</h3>
+          <canvas id="avgByOutletChart"></canvas>
+        </div>
+        <div class="chart-wrap">
+          <h3 style="margin:0 0 12px;font-size:15px;color:var(--navy-800);">Outcomes</h3>
+          <canvas id="outcomeChart"></canvas>
+        </div>
       </div>
 
       <div class="panel">
@@ -710,6 +734,24 @@
         </div>
         <div class="chart-wrap" style="margin-top:6px;">
           <canvas id="skillsChart"></canvas>
+        </div>
+        <div class="chart-wrap" id="skillTrendWrap" style="margin-top:22px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+            <h3 style="margin:0;font-size:15px;color:var(--navy-800);">Skill Trend Over Time</h3>
+            <select id="skillTrendSelect" onchange="skillTrendUserPicked=true; renderSkillsInsights()">
+              <option>Guest Engagement &amp; Hospitality Mindset</option>
+              <option>Communication Clarity</option>
+              <option>Adaptability</option>
+              <option>Teamwork &amp; Collaboration</option>
+              <option>Conflict Resolution</option>
+              <option>Time Management</option>
+              <option>Attention to Detail</option>
+              <option>Positive Attitude &amp; Resilience</option>
+              <option>Active Listening</option>
+              <option>Professionalism &amp; Appearance</option>
+            </select>
+          </div>
+          <canvas id="skillTrendChart"></canvas>
         </div>
         <div class="empty-state" id="skillsEmpty" style="display:none;">
           <div class="icon" aria-hidden="true">
@@ -1212,6 +1254,10 @@ let currentState = {}; // in-progress evaluation answers
 let allEvals = [];      // cached from Firestore
 let trendChartInstance = null;
 let skillsChartInstance = null;
+let avgByOutletChartInstance = null;
+let outcomeChartInstance = null;
+let skillTrendChartInstance = null;
+let skillTrendUserPicked = false;
 let selectedEvalId = null;
 
 /* ---------------- GATE ---------------- */
@@ -1621,22 +1667,54 @@ function loadEvaluations(){
   });
 }
 
+function filterByDateRange(evals, days){
+  const cutoff = Date.now() - days*86400000;
+  return evals.filter(r=>{
+    const d = new Date(r.date+"T12:00:00").getTime();
+    return !isNaN(d) && d >= cutoff;
+  });
+}
+
+function computeAvgScoreDelta(days, scoped){
+  if (!scoped.length) return "";
+  const now = Date.now();
+  const prevStart = now - days*2*86400000;
+  const prevEnd = now - days*86400000;
+  const prevEvals = allEvals.filter(r=>{
+    const d = new Date(r.date+"T12:00:00").getTime();
+    return !isNaN(d) && d >= prevStart && d < prevEnd;
+  });
+  if (!prevEvals.length) return "";
+  const curAvg = scoped.reduce((a,r)=>a+r.percent,0)/scoped.length;
+  const prevAvg = prevEvals.reduce((a,r)=>a+r.percent,0)/prevEvals.length;
+  const diff = curAvg - prevAvg;
+  const dir = diff > 0.05 ? 'up' : diff < -0.05 ? 'down' : 'flat';
+  const arrow = dir==='up' ? '&#9650;' : dir==='down' ? '&#9660;' : '&mdash;';
+  return `<span class="stat-delta delta-${dir}">${arrow} ${Math.abs(diff).toFixed(1)}pp vs prior ${days}d</span>`;
+}
+
 function renderHistory(){
   const outletFilter = document.getElementById('filterOutlet') ? document.getElementById('filterOutlet').value : "";
   const actionFilter = document.getElementById('filterAction') ? document.getElementById('filterAction').value : "";
-  let rows = allEvals.slice();
+  const rangeFilter = document.getElementById('filterDateRange') ? document.getElementById('filterDateRange').value : "";
+
+  // Date range scopes the KPIs and charts; outlet/action filters refine the table only.
+  const scoped = rangeFilter ? filterByDateRange(allEvals, parseInt(rangeFilter,10)) : allEvals.slice();
+
+  let rows = scoped.slice();
   if (outletFilter) rows = rows.filter(r=>r.outlet===outletFilter);
   if (actionFilter) rows = rows.filter(r=>r.actionKey===actionFilter);
 
   // Stat cards
   const statRow = document.getElementById('statRow');
-  const total = allEvals.length;
-  const avg = total ? (allEvals.reduce((a,r)=>a+r.percent,0)/total) : 0;
-  const needsAction = allEvals.filter(r=>r.actionKey==='verbal'||r.actionKey==='written'||r.actionKey==='fail').length;
-  const unsigned = allEvals.filter(r=> r.actionKey!=='celebrate' && !(r.actionPlan&&r.actionPlan.signed)).length;
+  const total = scoped.length;
+  const avg = total ? (scoped.reduce((a,r)=>a+r.percent,0)/total) : 0;
+  const needsAction = scoped.filter(r=>r.actionKey==='verbal'||r.actionKey==='written'||r.actionKey==='fail').length;
+  const unsigned = scoped.filter(r=> r.actionKey!=='celebrate' && !(r.actionPlan&&r.actionPlan.signed)).length;
+  const deltaHtml = rangeFilter ? computeAvgScoreDelta(parseInt(rangeFilter,10), scoped) : "";
   statRow.innerHTML = `
     <div class="stat-card"><div class="k">Total Evaluations</div><div class="v">${total}</div></div>
-    <div class="stat-card"><div class="k">Average Score</div><div class="v">${total? avg.toFixed(1):'0'}<small>%</small></div></div>
+    <div class="stat-card"><div class="k">Average Score</div><div class="v">${total? avg.toFixed(1):'0'}<small>%</small></div>${deltaHtml}</div>
     <div class="stat-card"><div class="k">Needing Action</div><div class="v">${needsAction}</div></div>
     <div class="stat-card"><div class="k">Pending Sign-Off</div><div class="v">${unsigned}</div></div>
   `;
@@ -1666,7 +1744,9 @@ function renderHistory(){
     });
   }
 
-  renderTrendChart(rows);
+  renderTrendChart(scoped);
+  renderAvgByOutletChart(scoped);
+  renderOutcomeChart(scoped);
 }
 
 function bandLabel(key){
@@ -1674,13 +1754,13 @@ function bandLabel(key){
            pass:"Pass", fail:"Fail" }[key] || "";
 }
 
-function renderTrendChart(rows){
+function renderTrendChart(scoped){
   const ctx = document.getElementById('trendChart');
   if (!ctx) return;
-  const outlets = [...new Set(allEvals.map(r=>r.outlet))];
+  const outlets = [...new Set(scoped.map(r=>r.outlet))];
   const palette = ["#c8a24a","#832028","#3f8f5f","#8a5fb0","#a62a2f","#c98a2c","#611820"];
   const datasets = outlets.map((o,i)=>{
-    const pts = allEvals.filter(r=>r.outlet===o).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const pts = scoped.filter(r=>r.outlet===o).sort((a,b)=>new Date(a.date)-new Date(b.date));
     return {
       label:o,
       data: pts.map(p=>({x:p.date, y:p.percent})),
@@ -1689,6 +1769,15 @@ function renderTrendChart(rows){
       tension:.25, spanGaps:true
     };
   });
+  const dates = scoped.map(r=>r.date).filter(Boolean).sort();
+  if (dates.length){
+    datasets.push({
+      label:'Target (92%)',
+      data:[{x:dates[0], y:92},{x:dates[dates.length-1], y:92}],
+      borderColor:'#8a8368', borderDash:[6,4], borderWidth:1.5,
+      pointRadius:0, fill:false, tension:0
+    });
+  }
   if (trendChartInstance) trendChartInstance.destroy();
   trendChartInstance = new Chart(ctx, {
     type:'line',
@@ -1704,7 +1793,115 @@ function renderTrendChart(rows){
   });
 }
 
+function renderAvgByOutletChart(scoped){
+  const ctx = document.getElementById('avgByOutletChart');
+  if (!ctx) return;
+  const byOutlet = {};
+  scoped.forEach(r=>{
+    if (!byOutlet[r.outlet]) byOutlet[r.outlet] = { sum:0, cnt:0 };
+    byOutlet[r.outlet].sum += r.percent;
+    byOutlet[r.outlet].cnt += 1;
+  });
+  const entries = Object.entries(byOutlet)
+    .map(([outlet, v])=>({ outlet, avg: v.sum/v.cnt, cnt: v.cnt }))
+    .sort((a,b)=> b.avg - a.avg);
+  const labels = entries.map(e=>e.outlet);
+  const data = entries.map(e=> Math.round(e.avg*10)/10);
+  if (avgByOutletChartInstance) avgByOutletChartInstance.destroy();
+  avgByOutletChartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'Avg Score %',
+        data,
+        backgroundColor: data.map(v=> v>=92 ? '#3f8f5f' : v>=85 ? '#c98a2c' : '#b3453f'),
+        borderRadius:3
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      scales:{ x:{ min:0, max:100 } },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label:(item)=> ` ${item.parsed.x}% avg \u00b7 ${entries[item.dataIndex].cnt} eval${entries[item.dataIndex].cnt===1?'':'s'}` } }
+      }
+    }
+  });
+}
+
+function renderOutcomeChart(scoped){
+  const ctx = document.getElementById('outcomeChart');
+  if (!ctx) return;
+  const counts = {};
+  scoped.forEach(r=>{ counts[r.actionKey] = (counts[r.actionKey]||0) + 1; });
+  const order = ['celebrate','acceptable','pass','verbal','written','fail'];
+  const colors = { celebrate:'#3f8f5f', acceptable:'#6fae87', pass:'#3f8f5f', verbal:'#c98a2c', written:'#b3453f', fail:'#b3453f' };
+  const present = order.filter(k=>counts[k]);
+  const labels = present.map(k=>bandLabel(k));
+  const data = present.map(k=>counts[k]);
+  const bg = present.map(k=>colors[k]);
+  if (outcomeChartInstance) outcomeChartInstance.destroy();
+  outcomeChartInstance = new Chart(ctx, {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data, backgroundColor:bg, borderColor:'#fbfaf6', borderWidth:2 }] },
+    options:{
+      responsive:true,
+      cutout:'62%',
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:11} } } }
+    }
+  });
+}
+
 /* ---------------- SOFT SKILLS INSIGHTS ---------------- */
+function computeSkillPctForEval(ev, skill){
+  let pts = 0, max = 0;
+  (ev.sections||[]).forEach(sec=>{
+    (sec.questions||[]).forEach(q=>{
+      if (q.skill !== skill) return;
+      if (q.answer==='na' || q.answer===null || q.answer===undefined) return;
+      max += 1;
+      pts += (typeof q.answer === 'number') ? (q.answer/5) : (q.answer==='yes' ? 1 : 0);
+    });
+  });
+  return max ? (pts/max*100) : null;
+}
+
+function renderSkillTrendChart(scopedEvals, skill){
+  const ctx = document.getElementById('skillTrendChart');
+  if (!ctx || !skill) return;
+  const pts = scopedEvals
+    .map(ev=>({ date: ev.date, pct: computeSkillPctForEval(ev, skill) }))
+    .filter(p=> p.pct !== null && p.date)
+    .sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+  if (skillTrendChartInstance) skillTrendChartInstance.destroy();
+  skillTrendChartInstance = new Chart(ctx, {
+    type:'line',
+    data:{
+      datasets:[{
+        label: skill,
+        data: pts.map(p=>({ x:p.date, y: Math.round(p.pct*10)/10 })),
+        borderColor:'#c8a24a',
+        backgroundColor:'#c8a24a',
+        tension:.25,
+        spanGaps:true,
+        pointRadius:4,
+        pointHoverRadius:6
+      }]
+    },
+    options:{
+      responsive:true,
+      scales:{
+        x:{ type:'time', time:{ unit:'day' } },
+        y:{ min:0, max:100, title:{display:true,text:'Score %'} }
+      },
+      plugins:{ legend:{ display:false } }
+    }
+  });
+}
+
 function renderSkillsInsights(){
   const ctx = document.getElementById('skillsChart');
   if (!ctx) return;
@@ -1715,23 +1912,28 @@ function renderSkillsInsights(){
   const scopeNote = document.getElementById('skillsScopeNote');
   const listScopeNote = document.getElementById('skillsListScopeNote');
   const scopeLabel = outletFilter ? `for ${outletFilter}` : "across all outlets and evaluations";
-  scopeNote.textContent = `Every question is tagged to one of the 10 Essential Soft Skills. This shows where coaching effort will move the needle most, ${scopeLabel}.`;
+  const countNote = scopedEvals.length ? ` Based on ${scopedEvals.length} evaluation${scopedEvals.length===1?'':'s'}.` : "";
+  scopeNote.textContent = `Every question is tagged to one of the 10 Essential Soft Skills. This shows where coaching effort will move the needle most, ${scopeLabel}.${countNote}`;
   listScopeNote.textContent = outletFilter
     ? `Skills below 92% for ${outletFilter}, worst first.`
     : "Skills below 92% across all recorded evaluations, worst first.";
 
   const chartWrap = ctx.closest('.chart-wrap');
+  const trendWrap = document.getElementById('skillTrendWrap');
   const emptyEl = document.getElementById('skillsEmpty');
   const list = document.getElementById('skillsList');
 
   if (outletFilter && scopedEvals.length === 0){
     chartWrap.style.display = "none";
+    trendWrap.style.display = "none";
     emptyEl.style.display = "block";
     list.innerHTML = "";
     if (skillsChartInstance){ skillsChartInstance.destroy(); skillsChartInstance = null; }
+    if (skillTrendChartInstance){ skillTrendChartInstance.destroy(); skillTrendChartInstance = null; }
     return;
   }
   chartWrap.style.display = "";
+  trendWrap.style.display = "";
   emptyEl.style.display = "none";
 
   const tally = {};
@@ -1752,18 +1954,29 @@ function renderSkillsInsights(){
       });
     });
   });
-  const labels = SKILLS;
-  const data = labels.map(s=> tally[s].max ? Math.round(tally[s].pts/tally[s].max*1000)/10 : null);
+
+  // Worst-first ordering: the skill needing the most coaching attention sorts
+  // to the top; skills with no applicable data yet sink to the bottom.
+  const sortedAll = SKILLS
+    .map(s=>({ skill:s, pct: tally[s].max ? tally[s].pts/tally[s].max*100 : null }))
+    .sort((a,b)=>{
+      if (a.pct===null && b.pct===null) return 0;
+      if (a.pct===null) return 1;
+      if (b.pct===null) return -1;
+      return a.pct - b.pct;
+    });
+  const chartLabels = sortedAll.map(x=>x.skill);
+  const chartData = sortedAll.map(x=> x.pct===null ? null : Math.round(x.pct*10)/10);
 
   if (skillsChartInstance) skillsChartInstance.destroy();
   skillsChartInstance = new Chart(ctx, {
     type:'bar',
     data:{
-      labels,
+      labels: chartLabels,
       datasets:[{
         label:'Score %',
-        data,
-        backgroundColor: data.map(v=> v===null ? '#ddd' : v>=92 ? '#3f8f5f' : v>=85 ? '#c98a2c' : '#b3453f'),
+        data: chartData,
+        backgroundColor: chartData.map(v=> v===null ? '#ddd' : v>=92 ? '#3f8f5f' : v>=85 ? '#c98a2c' : '#b3453f'),
         borderRadius:3
       }]
     },
@@ -1775,16 +1988,22 @@ function renderSkillsInsights(){
     }
   });
 
-  const ranked = labels
-    .map(s=>({ skill:s, pct: tally[s].max ? tally[s].pts/tally[s].max*100 : null }))
-    .filter(x=> x.pct !== null && x.pct < 92)
-    .sort((a,b)=>a.pct-b.pct);
+  const trendSelect = document.getElementById('skillTrendSelect');
+  if (trendSelect){
+    if (!skillTrendUserPicked){
+      const worst = sortedAll.find(x=>x.pct!==null);
+      trendSelect.value = worst ? worst.skill : SKILLS[0];
+    }
+    renderSkillTrendChart(scopedEvals, trendSelect.value);
+  }
+
+  const ranked = sortedAll.filter(x=> x.pct !== null && x.pct < 92);
   if (ranked.length === 0){
     list.innerHTML = `<p style="color:#8a8368;font-size:13.5px;">No skill is currently averaging below 92% \u2014 nice work. Keep collecting evaluations to track this over time.</p>`;
   } else {
     list.innerHTML = ranked.map(r=>{
       const action = actionForScore(r.pct);
-      return `<div class="qrow"><div class="qtext"><strong>${r.skill}</strong></div><span class="score-chip ${action.chip}">${r.pct.toFixed(0)}%</span></div>`;
+      return `<div class="qrow" style="cursor:pointer;" onclick='skillTrendUserPicked=true; document.getElementById("skillTrendSelect").value="${r.skill}"; renderSkillsInsights();'><div class="qtext"><strong>${r.skill}</strong></div><span class="score-chip ${action.chip}">${r.pct.toFixed(0)}%</span></div>`;
     }).join("");
   }
 }
