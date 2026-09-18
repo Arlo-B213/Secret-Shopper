@@ -976,6 +976,27 @@
         <div class="spotlight-row" id="teamSpotlightRow"></div>
       </div>
 
+      <div class="panel" id="teamMergePanel">
+        <h2>Duplicate Names</h2>
+        <p class="sub">Spelling variants of the same person (e.g. "Wendy" and "Wendy S.") can be merged so their scores combine into one roster entry. Merges are shared with everyone using this app.</p>
+        <div id="teamSuggestions"></div>
+        <div class="section-block">
+          <div class="section-head"><h3>Merge Manually</h3></div>
+          <div class="grid2">
+            <div class="field">
+              <label>Merge this name&hellip;</label>
+              <select id="mergeAliasSelect"><option value="">Select a name&hellip;</option></select>
+            </div>
+            <div class="field">
+              <label>&hellip;into this name</label>
+              <select id="mergeCanonicalSelect"><option value="">Select a name&hellip;</option></select>
+            </div>
+          </div>
+          <button class="btn-navy" onclick="manualMergeSelected()">Merge Names</button>
+        </div>
+        <div class="section-block" id="teamAliasList"></div>
+      </div>
+
       <div class="chart-wrap" id="teamChartWrap">
         <h3 style="margin:0 0 12px;font-size:15px;color:var(--navy-800);">Top Staff by Average Score</h3>
         <canvas id="teamRankChart"></canvas>
@@ -1521,6 +1542,9 @@ let insightTrendChartInstance = null;
 let insightTrendUserPicked = false;
 let teamRankChartInstance = null;
 let lastTeamRoster = [];
+let staffAliasRules = [];
+let dismissedNameSuggestions = new Set();
+const STAFF_ALIAS_DOC_ID = "_staffAliasConfig";
 let selectedEvalId = null;
 
 /* ---------------- GATE ---------------- */
@@ -1570,7 +1594,7 @@ function showView(v){
   if (v === 'history') renderHistory();
   if (v === 'skills') renderSkillsInsights();
   if (v === 'insight') renderRestaurantInsight();
-  if (v === 'team') renderTeamInsight();
+  if (v === 'team'){ renderTeamInsight(); renderTeamMergeTools(); }
 }
 
 /* ---------------- INIT ---------------- */
@@ -1934,15 +1958,25 @@ function loadEvaluations(){
     renderSkillsInsights();
     renderRestaurantInsight();
     renderTeamInsight();
+    renderTeamMergeTools();
     return;
   }
   db.collection(COLLECTION).orderBy("createdAt","desc").onSnapshot(snap=>{
     allEvals = [];
-    snap.forEach(doc=> allEvals.push({ id: doc.id, ...doc.data() }));
+    staffAliasRules = [];
+    snap.forEach(doc=>{
+      const data = doc.data();
+      if (data.__type === 'staffAliasConfig'){
+        staffAliasRules = Array.isArray(data.aliases) ? data.aliases : [];
+        return;
+      }
+      allEvals.push({ id: doc.id, ...data });
+    });
     renderHistory();
     renderSkillsInsights();
     renderRestaurantInsight();
     renderTeamInsight();
+    renderTeamMergeTools();
   }, err=>{
     console.error(err);
   });
@@ -2492,11 +2526,18 @@ function normalizeStaffName(raw){
   return (raw || '').replace(/\s+/g, ' ').trim();
 }
 
+function resolveStaffName(raw){
+  const trimmed = normalizeStaffName(raw);
+  if (!trimmed) return '';
+  const rule = staffAliasRules.find(r => r.alias.toLowerCase() === trimmed.toLowerCase());
+  return rule ? rule.canonical : trimmed;
+}
+
 function buildStaffRoster(evals){
   const roster = {};
   evals.forEach(ev => {
     const addPerson = (rawName, role) => {
-      const name = normalizeStaffName(rawName);
+      const name = resolveStaffName(rawName);
       if (!name) return;
       const key = name.toLowerCase();
       if (!roster[key]) roster[key] = { key, displayName: name, count: 0, sumPct: 0, roles: new Set(), outlets: new Set(), visits: [] };
@@ -2628,6 +2669,139 @@ function renderTeamInsight(){
         plugins: { legend: { display: false } }
       }
     });
+  }
+}
+
+function levenshteinDistance(a, b){
+  // Damerau-Levenshtein (optimal string alignment): includes adjacent
+  // transpositions as a single edit so common typos like "Jhon"/"John" or
+  // "Mnager"/"Manager" register as distance 1, not 2.
+  const m = a.length, n = b.length;
+  const dp = [];
+  for (let i = 0; i <= m; i++) dp.push([i]);
+  for (let j = 1; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++){
+    for (let j = 1; j <= n; j++){
+      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i-1][j] + 1,
+        dp[i][j-1] + 1,
+        dp[i-1][j-1] + cost
+      );
+      if (i > 1 && j > 1 && a[i-1] === b[j-2] && a[i-2] === b[j-1]){
+        dp[i][j] = Math.min(dp[i][j], dp[i-2][j-2] + 1);
+      }
+    }
+  }
+  return dp[m][n];
+}
+
+function namesLikelyMatch(a, b){
+  const na = a.toLowerCase().replace(/[.,]/g, '').trim();
+  const nb = b.toLowerCase().replace(/[.,]/g, '').trim();
+  if (na === nb) return true;
+  if (na.length >= 3 && nb.length >= 3 && (na.startsWith(nb) || nb.startsWith(na))) return true;
+  if (Math.min(na.length, nb.length) >= 4 && Math.abs(na.length - nb.length) <= 2 && levenshteinDistance(na, nb) <= 1) return true;
+  return false;
+}
+
+function computeMergeSuggestions(fullRoster){
+  const suggestions = [];
+  for (let i = 0; i < fullRoster.length; i++){
+    for (let j = i + 1; j < fullRoster.length; j++){
+      const a = fullRoster[i], b = fullRoster[j];
+      if (!namesLikelyMatch(a.displayName, b.displayName)) continue;
+      const pairKey = [a.key, b.key].sort().join('|');
+      if (dismissedNameSuggestions.has(pairKey)) continue;
+      suggestions.push({ a, b, pairKey });
+    }
+  }
+  return suggestions;
+}
+
+function saveStaffAliases(){
+  if (!firebaseReady){
+    toast("Firebase isn't connected \u2014 this merge won't be saved.");
+    return Promise.resolve();
+  }
+  return db.collection(COLLECTION).doc(STAFF_ALIAS_DOC_ID).set({
+    __type: 'staffAliasConfig', aliases: staffAliasRules, createdAt: Date.now()
+  }).catch(err => {
+    console.error(err);
+    toast("Couldn't save the merge \u2014 check Firestore permissions.");
+  });
+}
+
+function mergeStaffNames(aliasName, canonicalName){
+  if (!aliasName || !canonicalName || aliasName.toLowerCase() === canonicalName.toLowerCase()) return;
+  staffAliasRules = staffAliasRules.filter(r => r.alias.toLowerCase() !== aliasName.toLowerCase());
+  staffAliasRules.push({ alias: aliasName, canonical: canonicalName });
+  saveStaffAliases().then(() => {
+    toast(`Merged "${aliasName}" into "${canonicalName}".`);
+    renderTeamInsight();
+    renderTeamMergeTools();
+  });
+}
+
+function removeStaffAlias(alias){
+  staffAliasRules = staffAliasRules.filter(r => r.alias.toLowerCase() !== alias.toLowerCase());
+  saveStaffAliases().then(() => {
+    toast(`Un-merged "${alias}".`);
+    renderTeamInsight();
+    renderTeamMergeTools();
+  });
+}
+
+function dismissNameSuggestion(pairKey){
+  dismissedNameSuggestions.add(pairKey);
+  renderTeamMergeTools();
+}
+
+function manualMergeSelected(){
+  const aliasName = document.getElementById('mergeAliasSelect').value;
+  const canonicalName = document.getElementById('mergeCanonicalSelect').value;
+  if (!aliasName || !canonicalName){ toast("Pick two names to merge."); return; }
+  if (aliasName.toLowerCase() === canonicalName.toLowerCase()){ toast("Pick two different names."); return; }
+  mergeStaffNames(aliasName, canonicalName);
+}
+
+function renderTeamMergeTools(){
+  const suggestionsEl = document.getElementById('teamSuggestions');
+  if (!suggestionsEl) return;
+
+  const fullRoster = buildStaffRoster(allEvals).sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  const suggestions = computeMergeSuggestions(fullRoster);
+  if (!suggestions.length){
+    suggestionsEl.innerHTML = '<p style="color:#8a8368;font-size:13px;">No likely duplicates detected right now.</p>';
+  } else {
+    suggestionsEl.innerHTML = '<div class="section-head"><h3>Suggested Merges</h3></div>' + suggestions.map(s => {
+      const keep = s.a.count >= s.b.count ? s.a : s.b;
+      const drop = s.a.count >= s.b.count ? s.b : s.a;
+      const dropSafe = drop.displayName.replace(/'/g, "\\'");
+      const keepSafe = keep.displayName.replace(/'/g, "\\'");
+      return `<div class="qrow">
+        <div class="qtext">Is <strong>${drop.displayName}</strong> the same person as <strong>${keep.displayName}</strong>?</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-line" onclick="mergeStaffNames('${dropSafe}','${keepSafe}')">Merge</button>
+          <button class="btn-line" onclick="dismissNameSuggestion('${s.pairKey}')">Not the same</button>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  const optionsHtml = '<option value="">Select a name&hellip;</option>' + fullRoster.map(p => `<option>${p.displayName}</option>`).join("");
+  document.getElementById('mergeAliasSelect').innerHTML = optionsHtml;
+  document.getElementById('mergeCanonicalSelect').innerHTML = optionsHtml;
+
+  const aliasListEl = document.getElementById('teamAliasList');
+  if (!staffAliasRules.length){
+    aliasListEl.innerHTML = '<div class="section-head"><h3>Active Merges</h3></div><p style="color:#8a8368;font-size:13px;">No merges yet.</p>';
+  } else {
+    aliasListEl.innerHTML = '<div class="section-head"><h3>Active Merges</h3></div>' + staffAliasRules.map(r => {
+      const aliasSafe = r.alias.replace(/'/g, "\\'");
+      return `<span class="role-chip">${r.alias} &rarr; <b>${r.canonical}</b> <span style="cursor:pointer;margin-left:6px;color:var(--red);" onclick="removeStaffAlias('${aliasSafe}')">&times;</span></span>`;
+    }).join("");
   }
 }
 
