@@ -534,6 +534,29 @@
   }
   .gauge-count{ font-size:10.5px; color:#a79f88; }
 
+  /* ---------- Team Member Insight: spotlight cards ---------- */
+  .spotlight-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:18px; }
+  .spotlight-card{
+    background:var(--navy-900); color:var(--ivory); border-radius:8px; padding:18px 20px;
+    display:flex; align-items:center; gap:14px; position:relative; overflow:hidden;
+    transition:transform .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .spotlight-card:hover{ transform:translateY(-2px); box-shadow:var(--shadow-sm); }
+  .spotlight-card.needs-coaching{ background:#3a1a18; }
+  .spotlight-icon{
+    width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces',serif; font-size:20px; font-weight:600; flex-shrink:0;
+    background:rgba(200,162,74,.18); color:var(--gold-400); border:1.5px solid rgba(200,162,74,.4);
+  }
+  .spotlight-card.needs-coaching .spotlight-icon{ background:rgba(240,164,158,.15); color:#f0a49e; border-color:rgba(240,164,158,.4); }
+  .spotlight-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.8px; color:#9fb2cc; margin-bottom:3px; }
+  .spotlight-name{ font-family:'Fraunces',serif; font-size:18px; font-weight:600; }
+  .spotlight-meta{ font-size:11.5px; color:#9fb2cc; margin-top:2px; }
+  .spotlight-score{ margin-left:auto; text-align:right; }
+  .spotlight-score .num{ font-family:'Fraunces',serif; font-size:25px; font-weight:600; color:var(--gold-400); }
+  .spotlight-card.needs-coaching .spotlight-score .num{ color:#f0a49e; }
+  @media(max-width:700px){ .spotlight-row{ grid-template-columns:1fr; } }
+
   /* ---------- Mobile fit: question rows, submit bar, table ---------- */
   .table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .submit-bar-toggle{ display:none; }
@@ -599,6 +622,7 @@
       <button id="tabHistoryBtn" onclick="showView('history')">History &amp; Trends</button>
       <button id="tabSkillsBtn" onclick="showView('skills')">Soft Skills Insights</button>
       <button id="tabInsightBtn" onclick="showView('insight')">Restaurant Insight</button>
+      <button id="tabTeamBtn" onclick="showView('team')">Team Member Insight</button>
     </nav>
     <div class="top-right">
       <span id="roleLabel"></span>
@@ -902,6 +926,70 @@
           </select>
         </div>
         <canvas id="insightTrendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ---------------- TEAM MEMBER INSIGHT VIEW ---------------- -->
+    <div class="view" id="view-team">
+      <div class="panel">
+        <h2>Team Member Insight</h2>
+        <p class="sub" id="teamScopeNote">Built from the Team Member(s) Observed and Manager on Duty fields on every evaluation.</p>
+        <div class="filters">
+          <select id="filterTeamOutlet" onchange="renderTeamInsight()">
+            <option value="">All Outlets</option>
+            <option>Great Oak Steakhouse</option>
+            <option>Pisano's Italiano</option>
+            <option>Umi Sushi</option>
+            <option>1882 Cantina</option>
+            <option>Kelsey's</option>
+            <option>Journey's End</option>
+            <option>Bamboo</option>
+            <option>Blazing Noodle</option>
+            <option>Pronto</option>
+            <option>Agave</option>
+            <option>American Classics</option>
+            <option>Pechanga Fried Chicken</option>
+            <option>Caf&eacute; Cocoa's</option>
+            <option>Little Wok</option>
+            <option>Blends</option>
+            <option>Portable Smart Bar</option>
+          </select>
+          <select id="filterTeamRole" onchange="renderTeamInsight()">
+            <option value="">All Roles</option>
+            <option value="Team Member">Team Member</option>
+            <option value="Manager on Duty">Manager on Duty</option>
+          </select>
+          <select id="teamSortMode" onchange="renderTeamInsight()">
+            <option value="score">Sort: Highest Score First</option>
+            <option value="visits">Sort: Most Visits First</option>
+            <option value="name">Sort: Name A&ndash;Z</option>
+          </select>
+          <input type="text" id="teamSearchInput" placeholder="Search a name&hellip;" oninput="renderTeamInsight()">
+        </div>
+        <div class="empty-state" id="teamEmpty" style="display:none;">
+          <div class="icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1Z"/><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 12h6M9 16h4"/></svg>
+          </div>
+          <div class="big">No named team members yet</div>
+          <div>Evaluations need a name in Team Member(s) Observed or Manager on Duty to show up here.</div>
+        </div>
+        <div class="spotlight-row" id="teamSpotlightRow"></div>
+      </div>
+
+      <div class="chart-wrap" id="teamChartWrap">
+        <h3 style="margin:0 0 12px;font-size:15px;color:var(--navy-800);">Top Staff by Average Score</h3>
+        <canvas id="teamRankChart"></canvas>
+      </div>
+
+      <div class="panel" id="teamTablePanel">
+        <div class="table-scroll">
+          <table class="evals">
+            <thead>
+              <tr><th>Name</th><th>Role(s)</th><th>Outlet(s)</th><th>Visits</th><th>Avg Score</th></tr>
+            </thead>
+            <tbody id="teamTbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </main>
@@ -1431,6 +1519,8 @@ let insightRadarChartInstance = null;
 let insightRankChartInstance = null;
 let insightTrendChartInstance = null;
 let insightTrendUserPicked = false;
+let teamRankChartInstance = null;
+let lastTeamRoster = [];
 let selectedEvalId = null;
 
 /* ---------------- GATE ---------------- */
@@ -1476,9 +1566,11 @@ function showView(v){
   document.getElementById('tabHistoryBtn').classList.toggle('active', v==='history');
   document.getElementById('tabSkillsBtn').classList.toggle('active', v==='skills');
   document.getElementById('tabInsightBtn').classList.toggle('active', v==='insight');
+  document.getElementById('tabTeamBtn').classList.toggle('active', v==='team');
   if (v === 'history') renderHistory();
   if (v === 'skills') renderSkillsInsights();
   if (v === 'insight') renderRestaurantInsight();
+  if (v === 'team') renderTeamInsight();
 }
 
 /* ---------------- INIT ---------------- */
@@ -1841,6 +1933,7 @@ function loadEvaluations(){
     renderHistory();
     renderSkillsInsights();
     renderRestaurantInsight();
+    renderTeamInsight();
     return;
   }
   db.collection(COLLECTION).orderBy("createdAt","desc").onSnapshot(snap=>{
@@ -1849,6 +1942,7 @@ function loadEvaluations(){
     renderHistory();
     renderSkillsInsights();
     renderRestaurantInsight();
+    renderTeamInsight();
   }, err=>{
     console.error(err);
   });
@@ -2391,6 +2485,169 @@ function renderRestaurantInsight(){
     }
     renderInsightTrendChart(scopedEvals, trendSelect.value);
   }
+}
+
+/* ---------------- TEAM MEMBER INSIGHT ---------------- */
+function normalizeStaffName(raw){
+  return (raw || '').replace(/\s+/g, ' ').trim();
+}
+
+function buildStaffRoster(evals){
+  const roster = {};
+  evals.forEach(ev => {
+    const addPerson = (rawName, role) => {
+      const name = normalizeStaffName(rawName);
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (!roster[key]) roster[key] = { key, displayName: name, count: 0, sumPct: 0, roles: new Set(), outlets: new Set(), visits: [] };
+      const p = roster[key];
+      p.count += 1;
+      p.sumPct += (ev.percent || 0);
+      p.roles.add(role);
+      p.outlets.add(ev.outlet);
+      p.visits.push({ id: ev.id, date: ev.date, outlet: ev.outlet, pct: ev.percent, role, standard: ev.standard });
+    };
+    (ev.teamMembers || '').split(',').forEach(n => addPerson(n, 'Team Member'));
+    addPerson(ev.managerOnDuty, 'Manager on Duty');
+  });
+  return Object.values(roster).map(p => ({
+    ...p,
+    avgPct: p.count ? p.sumPct / p.count : null,
+    roles: [...p.roles],
+    outlets: [...p.outlets]
+  }));
+}
+
+function spotlightCardHtml(person, kind){
+  if (!person) return '';
+  const initials = person.displayName.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  const cls = kind === 'top' ? '' : 'needs-coaching';
+  const label = kind === 'top' ? 'Top Performer' : 'Needs Coaching';
+  return `<div class="spotlight-card ${cls}">
+    <div class="spotlight-icon">${initials || '?'}</div>
+    <div>
+      <div class="spotlight-label">${label}</div>
+      <div class="spotlight-name">${person.displayName}</div>
+      <div class="spotlight-meta">${person.roles.join(' / ')} &middot; ${person.count} visit${person.count === 1 ? '' : 's'}</div>
+    </div>
+    <div class="spotlight-score"><div class="num">${person.avgPct.toFixed(0)}%</div></div>
+  </div>`;
+}
+
+function renderTeamInsight(){
+  const tbody = document.getElementById('teamTbody');
+  if (!tbody) return;
+
+  const outletFilter = document.getElementById('filterTeamOutlet') ? document.getElementById('filterTeamOutlet').value : "";
+  const roleFilter = document.getElementById('filterTeamRole') ? document.getElementById('filterTeamRole').value : "";
+  const sortMode = document.getElementById('teamSortMode') ? document.getElementById('teamSortMode').value : "score";
+  const searchTerm = document.getElementById('teamSearchInput') ? document.getElementById('teamSearchInput').value.trim().toLowerCase() : "";
+
+  const scopedEvals = outletFilter ? allEvals.filter(r => r.outlet === outletFilter) : allEvals;
+  let roster = buildStaffRoster(scopedEvals);
+
+  if (roleFilter){
+    roster = roster
+      .map(p => {
+        const visits = p.visits.filter(v => v.role === roleFilter);
+        if (!visits.length) return null;
+        const sumPct = visits.reduce((a, v) => a + (v.pct || 0), 0);
+        return { ...p, visits, count: visits.length, sumPct, avgPct: sumPct / visits.length, roles: [roleFilter] };
+      })
+      .filter(Boolean);
+  }
+
+  if (searchTerm){
+    roster = roster.filter(p => p.displayName.toLowerCase().includes(searchTerm));
+  }
+
+  lastTeamRoster = roster;
+
+  const scopeNote = document.getElementById('teamScopeNote');
+  scopeNote.textContent = `Built from the Team Member(s) Observed and Manager on Duty fields on every evaluation. ${roster.length} name${roster.length === 1 ? '' : 's'} found.`;
+
+  const emptyEl = document.getElementById('teamEmpty');
+  const spotlightRow = document.getElementById('teamSpotlightRow');
+  const chartWrap = document.getElementById('teamChartWrap');
+  const tablePanel = document.getElementById('teamTablePanel');
+
+  if (roster.length === 0){
+    spotlightRow.style.display = "none";
+    chartWrap.style.display = "none";
+    tablePanel.style.display = "none";
+    emptyEl.style.display = "block";
+    spotlightRow.innerHTML = "";
+    tbody.innerHTML = "";
+    if (teamRankChartInstance){ teamRankChartInstance.destroy(); teamRankChartInstance = null; }
+    return;
+  }
+  spotlightRow.style.display = "";
+  chartWrap.style.display = "";
+  tablePanel.style.display = "";
+  emptyEl.style.display = "none";
+
+  const withScores = roster.filter(p => p.avgPct !== null);
+  const topPerformer = withScores.slice().sort((a, b) => b.avgPct - a.avgPct || b.count - a.count)[0];
+  const needsCoaching = withScores.slice().sort((a, b) => a.avgPct - b.avgPct || b.count - a.count)[0];
+  spotlightRow.innerHTML = (topPerformer ? spotlightCardHtml(topPerformer, 'top') : '')
+    + (needsCoaching && (!topPerformer || needsCoaching.key !== topPerformer.key) ? spotlightCardHtml(needsCoaching, 'coach') : '');
+
+  let sorted = roster.slice();
+  if (sortMode === 'visits') sorted.sort((a, b) => b.count - a.count || (b.avgPct || 0) - (a.avgPct || 0));
+  else if (sortMode === 'name') sorted.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  else sorted.sort((a, b) => (b.avgPct || 0) - (a.avgPct || 0) || b.count - a.count);
+
+  tbody.innerHTML = sorted.map(p => {
+    const chipClass = p.avgPct === null ? '' : p.avgPct >= 92 ? 'chip-green' : p.avgPct >= 85 ? 'chip-amber' : 'chip-red';
+    const safeKey = p.key.replace(/'/g, "\\'");
+    return `<tr onclick="openStaffModal('${safeKey}')">
+      <td><strong>${p.displayName}</strong></td>
+      <td>${p.roles.join(', ')}</td>
+      <td>${p.outlets.join(', ')}</td>
+      <td>${p.count}</td>
+      <td><span class="score-chip ${chipClass}">${p.avgPct === null ? '—' : p.avgPct.toFixed(0) + '%'}</span></td>
+    </tr>`;
+  }).join("");
+
+  const chartData = sorted.filter(p => p.avgPct !== null).slice(0, 8);
+  const ctx = document.getElementById('teamRankChart');
+  if (ctx){
+    const labels = chartData.map(p => p.displayName);
+    const data = chartData.map(p => Math.round(p.avgPct * 10) / 10);
+    if (teamRankChartInstance) teamRankChartInstance.destroy();
+    teamRankChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{
+        label: 'Avg Score %', data,
+        backgroundColor: data.map(v => v >= 92 ? '#3f8f5f' : v >= 85 ? '#c98a2c' : '#b3453f'),
+        borderRadius: 3
+      }]},
+      options: {
+        indexAxis: 'y', responsive: true,
+        scales: { x: { min: 0, max: 100 } },
+        plugins: { legend: { display: false } }
+      }
+    });
+  }
+}
+
+function openStaffModal(key){
+  const person = lastTeamRoster.find(p => p.key === key);
+  if (!person) return;
+  document.getElementById('modalOutlet').textContent = person.roles.join(' / ');
+  document.getElementById('modalTitle').textContent = `${person.displayName} \u2014 ${person.avgPct === null ? '—' : person.avgPct.toFixed(0) + '%'} avg (${person.count} visit${person.count === 1 ? '' : 's'})`;
+
+  const visitsSorted = person.visits.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  const html = `<div class="rpt-section-title">Visit History</div>` + visitsSorted.map(v => {
+    const action = bandForScore(v.standard, v.pct);
+    return `<div class="rpt-q" style="cursor:pointer;" onclick="openModal('${v.id}')">
+      <span>${v.date || ''} &middot; ${v.outlet} <span class="qtag" style="margin-left:6px;">${v.role}</span></span>
+      <span class="score-chip ${action.chip}">${v.pct}%</span>
+    </div>`;
+  }).join("");
+
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalBg').classList.add('active');
 }
 
 /* ---------------- MODAL / DETAIL / PRINT ---------------- */
