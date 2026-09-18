@@ -573,6 +573,7 @@
               <optgroup label="Casual Dining">
                 <option>1882 Cantina</option>
                 <option>Kelsey's</option>
+                <option>Journey's End</option>
               </optgroup>
               <optgroup label="Sushi">
                 <option>Umi Sushi</option>
@@ -686,6 +687,7 @@
             <option>Pisano's Italiano</option>
             <option>1882 Cantina</option>
             <option>Kelsey's</option>
+            <option>Journey's End</option>
             <option>Umi Sushi</option>
             <option>Bamboo</option>
             <option>Blazing Noodle</option>
@@ -735,6 +737,7 @@
             <option>Pisano's Italiano</option>
             <option>1882 Cantina</option>
             <option>Kelsey's</option>
+            <option>Journey's End</option>
             <option>Umi Sushi</option>
             <option>Bamboo</option>
             <option>Blazing Noodle</option>
@@ -1227,12 +1230,13 @@ const OUTLET_STANDARD = {
   "Little Wok":"quick_service","Portable Smart Bar":"quick_service",
   "Great Oak Steakhouse":"fine_dining","Pisano's Italiano":"fine_dining",
   "Umi Sushi":"umi_sushi",
-  "1882 Cantina":"cantina","Kelsey's":"kelseys",
+  "1882 Cantina":"cantina","Kelsey's":"kelseys","Journey's End":"casual_dining",
   "Bamboo":"asian_dining","Blazing Noodle":"asian_dining",
 };
 const STANDARDS = {
   fine_dining: { scoreType:"scale5", sections: FINE_DINING_SECTIONS, roleRollups: FINE_DINING_ROLE_ROLLUPS },
   umi_sushi:   { scoreType:"scale5", sections: FINE_DINING_SECTIONS.concat(UMI_EXTRA_SECTIONS), roleRollups: UMI_ROLE_ROLLUPS },
+  casual_dining:{ scoreType:"scale5", sections: CASUAL_DINING_SECTIONS, roleRollups: CASUAL_DINING_ROLE_ROLLUPS },
   cantina:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(CANTINA_EXTRA_SECTIONS), roleRollups: CANTINA_ROLE_ROLLUPS },
   kelseys:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(KELSEYS_EXTRA_SECTIONS), roleRollups: KELSEYS_ROLE_ROLLUPS },
   asian_dining:{ scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(ASIAN_DINING_EXTRA_SECTIONS), roleRollups: ASIAN_DINING_ROLE_ROLLUPS },
@@ -1454,6 +1458,8 @@ function onOutletChange(){
     subEl.textContent = "Casual dining standard plus a dedicated Cantina Bar section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
   } else if (standardKey === "kelseys"){
     subEl.textContent = "Casual dining standard plus a dedicated Sports Bar Experience section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+  } else if (standardKey === "casual_dining"){
+    subEl.textContent = "Evaluated against the casual dining standard \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
   } else if (standardKey === "asian_dining"){
     subEl.textContent = "Casual dining standard plus a dedicated Service Style section, including whether the server offered traditional or family-style service \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
   }
