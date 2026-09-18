@@ -507,13 +507,31 @@
 
   /* ---------- Mobile fit: question rows, submit bar, table ---------- */
   .table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .submit-bar-toggle{ display:none; }
   @media(max-width:700px){
     .qrow{ grid-template-columns:1fr; row-gap:10px; }
     .answer-btns, .scale-btns{ flex-wrap:wrap; }
-    .submit-bar{ flex-direction:column; align-items:stretch; gap:12px; padding:16px 18px; }
+    .submit-bar{
+      position:relative; flex-direction:column; align-items:stretch; gap:8px;
+      padding:10px 40px 10px 16px; bottom:10px;
+    }
     .submit-bar .live-score{ text-align:center; }
-    .submit-bar .action-pill{ text-align:center; }
-    .submit-bar .btn-navy{ width:100%; }
+    .submit-bar .live-score .num{ font-size:22px; }
+    .submit-bar .live-score .lbl{ font-size:9.5px; }
+    .submit-bar .action-pill{ text-align:center; font-size:11px; padding:4px 10px; }
+    .submit-bar .btn-navy{ width:100%; padding:9px 16px; font-size:12.5px; }
+    .submit-bar-toggle{
+      display:block; position:absolute; top:8px; right:8px;
+      background:transparent; border:1px solid var(--line); color:#9fb2cc;
+      width:26px; height:26px; border-radius:50%; font-size:14px; line-height:1;
+      cursor:pointer; z-index:1;
+    }
+    .submit-bar.collapsed{ padding:8px 40px 8px 16px; gap:0; }
+    .submit-bar.collapsed .live-score{ display:flex; flex-direction:row; align-items:baseline; justify-content:center; gap:8px; }
+    .submit-bar.collapsed .live-score .num{ font-size:17px; }
+    .submit-bar.collapsed .live-score .lbl{ font-size:9px; }
+    .submit-bar.collapsed .action-pill,
+    .submit-bar.collapsed .btn-navy{ display:none; }
     table.evals{ min-width:560px; }
   }
 </style>
@@ -648,7 +666,8 @@
         </div>
       </div>
 
-      <div class="submit-bar">
+      <div class="submit-bar" id="submitBar">
+        <button class="submit-bar-toggle no-print" id="submitBarToggle" onclick="toggleSubmitBar()" aria-label="Collapse live score">&#8964;</button>
         <div class="live-score">
           <div class="num" id="liveScoreNum">&mdash;</div>
           <div class="lbl">Live Score</div>
@@ -2349,6 +2368,12 @@ function pulseEl(el){
   el.classList.remove('pulse');
   void el.offsetWidth; /* force reflow so the animation restarts every call */
   el.classList.add('pulse');
+}
+function toggleSubmitBar(){
+  const bar = document.getElementById('submitBar');
+  const collapsed = bar.classList.toggle('collapsed');
+  document.getElementById('submitBarToggle').innerHTML = collapsed ? '&#8963;' : '&#8964;';
+  document.getElementById('submitBarToggle').setAttribute('aria-label', collapsed ? 'Expand live score' : 'Collapse live score');
 }
 window.addEventListener('scroll', ()=>{
   const header = document.querySelector('header.top');
