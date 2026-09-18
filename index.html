@@ -505,6 +505,35 @@
     *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
   }
 
+  /* ---------- Restaurant Insight: animated gauges ---------- */
+  .insight-gauges{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(148px,1fr)); gap:16px; margin-top:18px;
+  }
+  .gauge-card{
+    background:var(--ivory); border:1px solid #e4ddc9; border-radius:8px; padding:18px 12px 14px;
+    display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
+    transition:transform .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .gauge-card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-sm); }
+  .gauge-card .gauge-label{
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.35px;
+    color:#8a8368; min-height:26px; line-height:1.3;
+  }
+  .gauge-ring{ position:relative; width:96px; height:96px; }
+  .gauge-ring svg{ transform:rotate(-90deg); width:96px; height:96px; }
+  .gauge-ring circle{ fill:none; stroke-width:8; }
+  .gauge-ring .gauge-track{ stroke:#eee6cf; }
+  .gauge-ring .gauge-fill{ stroke-linecap:round; transition:stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1); }
+  .gauge-card.g-green .gauge-fill{ stroke:var(--green); }
+  .gauge-card.g-amber .gauge-fill{ stroke:var(--amber); }
+  .gauge-card.g-red .gauge-fill{ stroke:var(--red); }
+  .gauge-card.g-empty .gauge-fill{ stroke:#ddd; }
+  .gauge-value{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces',serif; font-size:20px; font-weight:600; color:var(--navy-900);
+  }
+  .gauge-count{ font-size:10.5px; color:#a79f88; }
+
   /* ---------- Mobile fit: question rows, submit bar, table ---------- */
   .table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .submit-bar-toggle{ display:none; }
@@ -569,6 +598,7 @@
       <button id="tabNewBtn" class="active" onclick="showView('new')">New Evaluation</button>
       <button id="tabHistoryBtn" onclick="showView('history')">History &amp; Trends</button>
       <button id="tabSkillsBtn" onclick="showView('skills')">Soft Skills Insights</button>
+      <button id="tabInsightBtn" onclick="showView('insight')">Restaurant Insight</button>
     </nav>
     <div class="top-right">
       <span id="roleLabel"></span>
@@ -814,6 +844,64 @@
         <h2>Lowest-Performing Skills</h2>
         <p class="sub" id="skillsListScopeNote">Skills below 92% across all recorded evaluations, worst first.</p>
         <div id="skillsList"></div>
+      </div>
+    </div>
+
+    <!-- ---------------- RESTAURANT INSIGHT VIEW ---------------- -->
+    <div class="view" id="view-insight">
+      <div class="panel">
+        <h2>Restaurant Insight</h2>
+        <p class="sub" id="insightScopeNote">Role-based performance roll-ups across every full-service outlet.</p>
+        <div class="filters">
+          <select id="filterInsightOutlet" onchange="renderRestaurantInsight()">
+            <option value="">All Full-Service Outlets</option>
+            <option>Great Oak Steakhouse</option>
+            <option>Pisano's Italiano</option>
+            <option>Umi Sushi</option>
+            <option>1882 Cantina</option>
+            <option>Kelsey's</option>
+            <option>Journey's End</option>
+            <option>Bamboo</option>
+            <option>Blazing Noodle</option>
+          </select>
+        </div>
+        <div class="empty-state" id="insightEmpty" style="display:none;">
+          <div class="icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1Z"/><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 12h6M9 16h4"/></svg>
+          </div>
+          <div class="big">No full-service evaluations yet</div>
+          <div>Pick a different outlet, or save a Mystery Shopper visit for a full-service restaurant.</div>
+        </div>
+        <div class="insight-gauges" id="insightGauges"></div>
+      </div>
+
+      <div class="grid2" id="insightChartsGrid">
+        <div class="chart-wrap">
+          <h3 style="margin:0 0 12px;font-size:15px;color:var(--navy-800);">Score Profile</h3>
+          <canvas id="insightRadarChart"></canvas>
+        </div>
+        <div class="chart-wrap">
+          <h3 style="margin:0 0 12px;font-size:15px;color:var(--navy-800);">Ranked by Score</h3>
+          <canvas id="insightRankChart"></canvas>
+        </div>
+      </div>
+
+      <div class="panel" id="insightTrendPanel">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+          <h3 style="margin:0;font-size:15px;color:var(--navy-800);">Category Trend Over Time</h3>
+          <select id="insightTrendSelect" onchange="insightTrendUserPicked=true; renderRestaurantInsight()">
+            <option>Overall Restaurant Score</option>
+            <option>Overall Food and Beverage Score</option>
+            <option>Server/Bartender Score</option>
+            <option>Hosting Staff Score</option>
+            <option>Bussing Staff Score</option>
+            <option>Management Score</option>
+            <option>Expeditor Score</option>
+            <option>Overall Facilities/Operations Score</option>
+            <option>Overall Experience Score</option>
+          </select>
+        </div>
+        <canvas id="insightTrendChart"></canvas>
       </div>
     </div>
   </main>
@@ -1339,6 +1427,10 @@ let avgByOutletChartInstance = null;
 let outcomeChartInstance = null;
 let skillTrendChartInstance = null;
 let skillTrendUserPicked = false;
+let insightRadarChartInstance = null;
+let insightRankChartInstance = null;
+let insightTrendChartInstance = null;
+let insightTrendUserPicked = false;
 let selectedEvalId = null;
 
 /* ---------------- GATE ---------------- */
@@ -1383,8 +1475,10 @@ function showView(v){
   document.getElementById('tabNewBtn').classList.toggle('active', v==='new');
   document.getElementById('tabHistoryBtn').classList.toggle('active', v==='history');
   document.getElementById('tabSkillsBtn').classList.toggle('active', v==='skills');
+  document.getElementById('tabInsightBtn').classList.toggle('active', v==='insight');
   if (v === 'history') renderHistory();
   if (v === 'skills') renderSkillsInsights();
+  if (v === 'insight') renderRestaurantInsight();
 }
 
 /* ---------------- INIT ---------------- */
@@ -1746,6 +1840,7 @@ function loadEvaluations(){
   if (!firebaseReady){
     renderHistory();
     renderSkillsInsights();
+    renderRestaurantInsight();
     return;
   }
   db.collection(COLLECTION).orderBy("createdAt","desc").onSnapshot(snap=>{
@@ -1753,6 +1848,7 @@ function loadEvaluations(){
     snap.forEach(doc=> allEvals.push({ id: doc.id, ...doc.data() }));
     renderHistory();
     renderSkillsInsights();
+    renderRestaurantInsight();
   }, err=>{
     console.error(err);
   });
@@ -2096,6 +2192,204 @@ function renderSkillsInsights(){
       const action = actionForScore(r.pct);
       return `<div class="qrow" style="cursor:pointer;" onclick='skillTrendUserPicked=true; document.getElementById("skillTrendSelect").value="${r.skill}"; renderSkillsInsights();'><div class="qtext"><strong>${r.skill}</strong></div><span class="score-chip ${action.chip}">${r.pct.toFixed(0)}%</span></div>`;
     }).join("");
+  }
+}
+
+/* ---------------- RESTAURANT INSIGHT ---------------- */
+const INSIGHT_LABELS = [
+  "Overall Restaurant Score",
+  "Overall Food and Beverage Score",
+  "Server/Bartender Score",
+  "Hosting Staff Score",
+  "Bussing Staff Score",
+  "Management Score",
+  "Expeditor Score",
+  "Overall Facilities/Operations Score",
+  "Overall Experience Score"
+];
+
+function animateNumber(el, toVal, opts){
+  opts = opts || {};
+  const decimals = opts.decimals === undefined ? 1 : opts.decimals;
+  const suffix = opts.suffix || '';
+  const duration = opts.duration || 900;
+  const start = performance.now();
+  function step(now){
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const val = toVal * eased;
+    el.textContent = val.toFixed(decimals) + suffix;
+    if (t < 1) requestAnimationFrame(step);
+    else el.textContent = toVal.toFixed(decimals) + suffix;
+  }
+  requestAnimationFrame(step);
+}
+
+function insightLabelValueForEval(ev, label){
+  const rr = (ev.roleRollups || []).find(r => r.label === label);
+  return (rr && rr.avg !== null && rr.avg !== undefined) ? rr.avg : null;
+}
+
+function renderInsightRadarChart(results){
+  const ctx = document.getElementById('insightRadarChart');
+  if (!ctx) return;
+  const labels = results.map(r => r.label);
+  const data = results.map(r => r.avg === null ? 0 : Math.round(r.avg*100)/100);
+  if (insightRadarChartInstance) insightRadarChartInstance.destroy();
+  insightRadarChartInstance = new Chart(ctx, {
+    type: 'radar',
+    data: { labels, datasets: [{
+      label: 'Score (out of 5)', data,
+      backgroundColor: 'rgba(200,162,74,.25)', borderColor: '#c8a24a', borderWidth: 2,
+      pointBackgroundColor: '#832028', pointBorderColor: '#832028', pointRadius: 4, pointHoverRadius: 6
+    }]},
+    options: {
+      responsive: true,
+      scales: { r: { min: 0, max: 5, ticks: { stepSize: 1, backdropColor: 'transparent' }, pointLabels: { font: { size: 10 } } } },
+      plugins: { legend: { display: false } },
+      animation: { duration: 1000, easing: 'easeOutQuart' }
+    }
+  });
+}
+
+function renderInsightRankChart(results){
+  const ctx = document.getElementById('insightRankChart');
+  if (!ctx) return;
+  const sorted = results.slice().sort((a,b)=>{
+    if (a.avg===null && b.avg===null) return 0;
+    if (a.avg===null) return 1;
+    if (b.avg===null) return -1;
+    return a.avg - b.avg;
+  });
+  const labels = sorted.map(r=>r.label);
+  const data = sorted.map(r=> r.avg===null ? null : Math.round(r.avg*100)/100);
+  if (insightRankChartInstance) insightRankChartInstance.destroy();
+  insightRankChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{
+      label: 'Score', data,
+      backgroundColor: data.map(v => v===null ? '#ddd' : v>=4.6 ? '#3f8f5f' : v>=4.25 ? '#c98a2c' : '#b3453f'),
+      borderRadius: 3
+    }]},
+    options: {
+      indexAxis: 'y', responsive: true,
+      scales: { x: { min: 0, max: 5 } },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function renderInsightTrendChart(scopedEvals, label){
+  const ctx = document.getElementById('insightTrendChart');
+  if (!ctx || !label) return;
+  const pts = scopedEvals
+    .map(ev => ({ date: ev.date, val: insightLabelValueForEval(ev, label) }))
+    .filter(p => p.val !== null && p.date)
+    .sort((a,b) => new Date(a.date) - new Date(b.date));
+  if (insightTrendChartInstance) insightTrendChartInstance.destroy();
+  insightTrendChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { datasets: [{
+      label, data: pts.map(p => ({ x: p.date, y: Math.round(p.val*100)/100 })),
+      borderColor: '#832028', backgroundColor: '#832028', tension: .25, spanGaps: true,
+      pointRadius: 4, pointHoverRadius: 6, fill: false
+    }]},
+    options: {
+      responsive: true,
+      scales: {
+        x: { type: 'time', time: { unit: 'day' } },
+        y: { min: 0, max: 5, title: { display: true, text: 'Score (out of 5)' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function renderRestaurantInsight(){
+  const gaugesEl = document.getElementById('insightGauges');
+  if (!gaugesEl) return;
+
+  const outletFilter = document.getElementById('filterInsightOutlet') ? document.getElementById('filterInsightOutlet').value : "";
+  const scopedEvals = allEvals.filter(r => Array.isArray(r.roleRollups) && r.roleRollups.length && (!outletFilter || r.outlet === outletFilter));
+
+  const scopeNote = document.getElementById('insightScopeNote');
+  const scopeLabel = outletFilter ? `for ${outletFilter}` : "across every full-service outlet";
+  const countNote = scopedEvals.length ? ` Based on ${scopedEvals.length} evaluation${scopedEvals.length===1?'':'s'}.` : "";
+  scopeNote.textContent = `Role-based performance roll-ups ${scopeLabel}.${countNote}`;
+
+  const emptyEl = document.getElementById('insightEmpty');
+  const chartsGrid = document.getElementById('insightChartsGrid');
+  const trendPanel = document.getElementById('insightTrendPanel');
+
+  if (scopedEvals.length === 0){
+    gaugesEl.style.display = "none";
+    chartsGrid.style.display = "none";
+    trendPanel.style.display = "none";
+    emptyEl.style.display = "block";
+    gaugesEl.innerHTML = "";
+    [insightRadarChartInstance, insightRankChartInstance, insightTrendChartInstance].forEach(inst => { if (inst) inst.destroy(); });
+    insightRadarChartInstance = null; insightRankChartInstance = null; insightTrendChartInstance = null;
+    return;
+  }
+  gaugesEl.style.display = "";
+  chartsGrid.style.display = "";
+  trendPanel.style.display = "";
+  emptyEl.style.display = "none";
+
+  const tally = {};
+  INSIGHT_LABELS.forEach(l => tally[l] = { sum: 0, cnt: 0 });
+  scopedEvals.forEach(ev => {
+    (ev.roleRollups || []).forEach(rr => {
+      if (rr.avg === null || rr.avg === undefined) return;
+      if (!tally[rr.label]) tally[rr.label] = { sum: 0, cnt: 0 };
+      tally[rr.label].sum += rr.avg;
+      tally[rr.label].cnt += 1;
+    });
+  });
+  const results = INSIGHT_LABELS.map(label => ({
+    label, avg: tally[label].cnt ? tally[label].sum / tally[label].cnt : null, cnt: tally[label].cnt
+  }));
+
+  const circumference = 2 * Math.PI * 40;
+  gaugesEl.innerHTML = results.map(r => {
+    const pct = r.avg === null ? 0 : (r.avg / 5 * 100);
+    const colorClass = r.avg === null ? 'g-empty' : pct >= 92 ? 'g-green' : pct >= 85 ? 'g-amber' : 'g-red';
+    const offset = circumference * (1 - pct / 100);
+    return `<div class="gauge-card ${colorClass}">
+      <div class="gauge-label">${r.label}</div>
+      <div class="gauge-ring">
+        <svg viewBox="0 0 96 96">
+          <circle class="gauge-track" cx="48" cy="48" r="40"></circle>
+          <circle class="gauge-fill" cx="48" cy="48" r="40" stroke-dasharray="${circumference}" stroke-dashoffset="${circumference}" data-target-offset="${offset}"></circle>
+        </svg>
+        <div class="gauge-value" data-target="${r.avg === null ? 0 : r.avg}">${r.avg === null ? '—' : '0.0'}</div>
+      </div>
+      <div class="gauge-count">${r.cnt} eval${r.cnt === 1 ? '' : 's'}</div>
+    </div>`;
+  }).join("");
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      gaugesEl.querySelectorAll('.gauge-fill').forEach(circle => {
+        circle.style.strokeDashoffset = circle.getAttribute('data-target-offset');
+      });
+    });
+    gaugesEl.querySelectorAll('.gauge-value').forEach(el => {
+      const target = parseFloat(el.getAttribute('data-target'));
+      if (!isNaN(target) && target > 0) animateNumber(el, target, { decimals: 1 });
+    });
+  });
+
+  renderInsightRadarChart(results);
+  renderInsightRankChart(results);
+
+  const trendSelect = document.getElementById('insightTrendSelect');
+  if (trendSelect){
+    if (!insightTrendUserPicked){
+      const worst = results.filter(r => r.avg !== null).sort((a,b) => a.avg - b.avg)[0];
+      trendSelect.value = worst ? worst.label : INSIGHT_LABELS[0];
+    }
+    renderInsightTrendChart(scopedEvals, trendSelect.value);
   }
 }
 
