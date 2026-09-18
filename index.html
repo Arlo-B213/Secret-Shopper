@@ -589,7 +589,7 @@
             <select id="f-areafocus">
               <option>Full Visit</option>
               <option>Dining Room Focus</option>
-              <option>Sushi Bar Focus</option>
+              <option id="areaFocusSushiOpt">Sushi Bar Focus</option>
               <option>Bar Focus</option>
             </select>
           </div>
@@ -1464,14 +1464,17 @@ function buildScaleSectionPanel(section, container){
 function onOutletChange(){
   const outlet = document.getElementById('f-outlet').value;
   const standardKey = OUTLET_STANDARD[outlet] || "quick_service";
-  document.getElementById('areaFocusField').style.display = (standardKey === "umi_sushi") ? "block" : "none";
+  const usesAreaFocus = (standardKey === "umi_sushi" || standardKey === "great_oak");
+  document.getElementById('areaFocusField').style.display = usesAreaFocus ? "block" : "none";
+  document.getElementById('areaFocusSushiOpt').style.display = (standardKey === "umi_sushi") ? "" : "none";
+  document.getElementById('f-areafocus').value = "Full Visit";
   const subEl = document.getElementById('outletSub');
   if (standardKey === "quick_service"){
     subEl.textContent = "Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.";
   } else if (standardKey === "fine_dining"){
     subEl.textContent = "Evaluated against the Forbes Travel Guide / AAA 4 Diamond fine dining standard \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
   } else if (standardKey === "great_oak"){
-    subEl.textContent = "Fine dining standard plus a dedicated Bar Service section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+    subEl.textContent = "Fine dining standard plus a dedicated Bar Service section \u2014 scored 1-5 per question (or N/A if it doesn't apply). Use Area Evaluated if the guest dined in the dining room or at the bar.";
   } else if (standardKey === "umi_sushi"){
     subEl.textContent = "Fine dining standard plus dedicated Sushi Bar and Bar Service sections \u2014 scored 1-5 per question (or N/A if it doesn't apply). Use Area Evaluated if this visit focused on one area.";
   } else if (standardKey === "cantina"){
@@ -1661,7 +1664,7 @@ function submitEvaluation(){
       shopperName: document.getElementById('f-shopper').value,
       teamMembers: document.getElementById('f-teammembers').value,
       managerOnDuty: document.getElementById('f-manager').value,
-      areaFocus: standardKey === "umi_sushi" ? document.getElementById('f-areafocus').value : "",
+      areaFocus: (standardKey === "umi_sushi" || standardKey === "great_oak") ? document.getElementById('f-areafocus').value : "",
       overallComments: document.getElementById('f-overallcomments').value,
       overallAvg: Math.round(avg*100)/100, percent: Math.round(pct*10)/10,
       actionKey: action.key, sections, roleRollups,
@@ -1695,6 +1698,7 @@ function resetForm(){
   document.getElementById('f-manager').value = "";
   document.getElementById('f-overallcomments').value = "";
   document.getElementById('areaFocusField').style.display = "none";
+  document.getElementById('f-areafocus').value = "Full Visit";
   document.getElementById('outletSub').textContent = "Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.";
   buildSections("");
 }
