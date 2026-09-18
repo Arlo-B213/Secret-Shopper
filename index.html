@@ -577,6 +577,10 @@
               <optgroup label="Sushi">
                 <option>Umi Sushi</option>
               </optgroup>
+              <optgroup label="Asian Dining">
+                <option>Bamboo</option>
+                <option>Blazing Noodle</option>
+              </optgroup>
             </select>
           </div>
           <div class="field" id="areaFocusField" style="display:none;">
@@ -683,6 +687,8 @@
             <option>1882 Cantina</option>
             <option>Kelsey's</option>
             <option>Umi Sushi</option>
+            <option>Bamboo</option>
+            <option>Blazing Noodle</option>
           </select>
           <select id="filterAction" onchange="renderHistory()">
             <option value="">All Score Bands</option>
@@ -730,6 +736,8 @@
             <option>1882 Cantina</option>
             <option>Kelsey's</option>
             <option>Umi Sushi</option>
+            <option>Bamboo</option>
+            <option>Blazing Noodle</option>
           </select>
         </div>
         <div class="chart-wrap" style="margin-top:6px;">
@@ -1182,6 +1190,14 @@ const KELSEYS_EXTRA_SECTIONS = [
   ]},
 ];
 
+const ASIAN_DINING_EXTRA_SECTIONS = [
+  { key:"servicestyle", name:"Service Style", role:"Server", questions:[
+    { t:"Server asked whether the table preferred traditional (individually plated) or family-style (shared) service", skill:"Communication Clarity" },
+    { t:"Shared/family-style dishes were paced and spaced appropriately for the table", skill:"Time Management" },
+    { t:"Server explained shared dishes or family-style etiquette when it was the table's first time", skill:"Communication Clarity" },
+  ]},
+];
+
 const CASUAL_DINING_ROLE_ROLLUPS = [
   { label:"Overall Restaurant Score", sections:["ambiance"] },
   { label:"Overall Food and Beverage Score", sections:["foodbeverage"] },
@@ -1199,6 +1215,9 @@ const CANTINA_ROLE_ROLLUPS = CASUAL_DINING_ROLE_ROLLUPS.concat([
 const KELSEYS_ROLE_ROLLUPS = CASUAL_DINING_ROLE_ROLLUPS.concat([
   { label:"Bar Service", sections:["sportsbar"] },
 ]);
+const ASIAN_DINING_ROLE_ROLLUPS = CASUAL_DINING_ROLE_ROLLUPS.concat([
+  { label:"Service Style", sections:["servicestyle"] },
+]);
 
 /* Maps each outlet to its standard, and each fine-dining standard to its
    section list + role roll-up definitions. */
@@ -1209,12 +1228,14 @@ const OUTLET_STANDARD = {
   "Great Oak Steakhouse":"fine_dining","Pisano's Italiano":"fine_dining",
   "Umi Sushi":"umi_sushi",
   "1882 Cantina":"cantina","Kelsey's":"kelseys",
+  "Bamboo":"asian_dining","Blazing Noodle":"asian_dining",
 };
 const STANDARDS = {
   fine_dining: { scoreType:"scale5", sections: FINE_DINING_SECTIONS, roleRollups: FINE_DINING_ROLE_ROLLUPS },
   umi_sushi:   { scoreType:"scale5", sections: FINE_DINING_SECTIONS.concat(UMI_EXTRA_SECTIONS), roleRollups: UMI_ROLE_ROLLUPS },
   cantina:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(CANTINA_EXTRA_SECTIONS), roleRollups: CANTINA_ROLE_ROLLUPS },
   kelseys:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(KELSEYS_EXTRA_SECTIONS), roleRollups: KELSEYS_ROLE_ROLLUPS },
+  asian_dining:{ scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(ASIAN_DINING_EXTRA_SECTIONS), roleRollups: ASIAN_DINING_ROLE_ROLLUPS },
 };
 
 /* =========================================================================
@@ -1433,6 +1454,8 @@ function onOutletChange(){
     subEl.textContent = "Casual dining standard plus a dedicated Cantina Bar section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
   } else if (standardKey === "kelseys"){
     subEl.textContent = "Casual dining standard plus a dedicated Sports Bar Experience section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+  } else if (standardKey === "asian_dining"){
+    subEl.textContent = "Casual dining standard plus a dedicated Service Style section, including whether the server offered traditional or family-style service \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
   }
   buildSections(outlet);
 }
