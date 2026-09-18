@@ -557,6 +557,22 @@
             <label>Outlet</label>
             <select id="f-outlet" onchange="onOutletChange()">
               <option value="">Select outlet&hellip;</option>
+              <optgroup label="Fine Dining">
+                <option>Great Oak Steakhouse</option>
+                <option>Pisano's Italiano</option>
+              </optgroup>
+              <optgroup label="Sushi">
+                <option>Umi Sushi</option>
+              </optgroup>
+              <optgroup label="Casual Dining">
+                <option>1882 Cantina</option>
+                <option>Kelsey's</option>
+                <option>Journey's End</option>
+              </optgroup>
+              <optgroup label="Asian Dining">
+                <option>Bamboo</option>
+                <option>Blazing Noodle</option>
+              </optgroup>
               <optgroup label="Quick Service (Food Court)">
                 <option>Pronto</option>
                 <option>Agave</option>
@@ -565,22 +581,6 @@
                 <option>Caf&eacute; Cocoa's</option>
                 <option>Little Wok</option>
                 <option>Portable Smart Bar</option>
-              </optgroup>
-              <optgroup label="Fine Dining">
-                <option>Great Oak Steakhouse</option>
-                <option>Pisano's Italiano</option>
-              </optgroup>
-              <optgroup label="Casual Dining">
-                <option>1882 Cantina</option>
-                <option>Kelsey's</option>
-                <option>Journey's End</option>
-              </optgroup>
-              <optgroup label="Sushi">
-                <option>Umi Sushi</option>
-              </optgroup>
-              <optgroup label="Asian Dining">
-                <option>Bamboo</option>
-                <option>Blazing Noodle</option>
               </optgroup>
             </select>
           </div>
@@ -676,6 +676,14 @@
         <div class="filters">
           <select id="filterOutlet" onchange="renderHistory()">
             <option value="">All Outlets</option>
+            <option>Great Oak Steakhouse</option>
+            <option>Pisano's Italiano</option>
+            <option>Umi Sushi</option>
+            <option>1882 Cantina</option>
+            <option>Kelsey's</option>
+            <option>Journey's End</option>
+            <option>Bamboo</option>
+            <option>Blazing Noodle</option>
             <option>Pronto</option>
             <option>Agave</option>
             <option>American Classics</option>
@@ -683,14 +691,6 @@
             <option>Caf&eacute; Cocoa's</option>
             <option>Little Wok</option>
             <option>Portable Smart Bar</option>
-            <option>Great Oak Steakhouse</option>
-            <option>Pisano's Italiano</option>
-            <option>1882 Cantina</option>
-            <option>Kelsey's</option>
-            <option>Journey's End</option>
-            <option>Umi Sushi</option>
-            <option>Bamboo</option>
-            <option>Blazing Noodle</option>
           </select>
           <select id="filterAction" onchange="renderHistory()">
             <option value="">All Score Bands</option>
@@ -726,6 +726,14 @@
         <div class="filters">
           <select id="filterSkillsOutlet" onchange="renderSkillsInsights()">
             <option value="">All Outlets</option>
+            <option>Great Oak Steakhouse</option>
+            <option>Pisano's Italiano</option>
+            <option>Umi Sushi</option>
+            <option>1882 Cantina</option>
+            <option>Kelsey's</option>
+            <option>Journey's End</option>
+            <option>Bamboo</option>
+            <option>Blazing Noodle</option>
             <option>Pronto</option>
             <option>Agave</option>
             <option>American Classics</option>
@@ -733,14 +741,6 @@
             <option>Caf&eacute; Cocoa's</option>
             <option>Little Wok</option>
             <option>Portable Smart Bar</option>
-            <option>Great Oak Steakhouse</option>
-            <option>Pisano's Italiano</option>
-            <option>1882 Cantina</option>
-            <option>Kelsey's</option>
-            <option>Journey's End</option>
-            <option>Umi Sushi</option>
-            <option>Bamboo</option>
-            <option>Blazing Noodle</option>
           </select>
         </div>
         <div class="chart-wrap" style="margin-top:6px;">
@@ -1083,6 +1083,20 @@ const UMI_EXTRA_SECTIONS = [
   ]},
 ];
 
+const GREAT_OAK_EXTRA_SECTIONS = [
+  { key:"barservice", name:"Bar Service", role:"Bartender", questions:[
+    { t:"Guest greeted at the bar with a smile, eye contact, and pleasant salutation", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"Bartender offered a food/drink menu promptly", skill:"Attention to Detail" },
+    { t:"Bartender demonstrated strong knowledge of spirits, wine, and craft cocktails", skill:"Communication Clarity" },
+    { t:"Proper pour method used (jigger, correct proportions)", skill:"Attention to Detail" },
+    { t:"Glassware appropriate and spotless for each beverage", skill:"Attention to Detail" },
+    { t:"Suggestive selling or a thoughtful pairing recommendation was offered", skill:"Guest Engagement & Hospitality Mindset" },
+    { t:"ID checked for any guest appearing under the age of 30", skill:"Professionalism & Appearance" },
+    { t:"Bartender maintained the bar area (clean, organized, stocked) throughout the visit", skill:"Attention to Detail" },
+    { t:"Tab/check handled accurately and presented professionally", skill:"Professionalism & Appearance" },
+  ]},
+];
+
 const FINE_DINING_ROLE_ROLLUPS = [
   { label:"Overall Restaurant Score", sections:["diningroom"] },
   { label:"Overall Food and Beverage Score", sections:["culinary"] },
@@ -1096,6 +1110,9 @@ const FINE_DINING_ROLE_ROLLUPS = [
 ];
 const UMI_ROLE_ROLLUPS = FINE_DINING_ROLE_ROLLUPS.concat([
   { label:"Sushi Chef", sections:["sushibar"] },
+  { label:"Bar Service", sections:["barservice"] },
+]);
+const GREAT_OAK_ROLE_ROLLUPS = FINE_DINING_ROLE_ROLLUPS.concat([
   { label:"Bar Service", sections:["barservice"] },
 ]);
 
@@ -1228,13 +1245,14 @@ const OUTLET_STANDARD = {
   "Pronto":"quick_service","Agave":"quick_service","American Classics":"quick_service",
   "Pechanga Fried Chicken":"quick_service","Cafe Cocoa's":"quick_service","Caf\u00e9 Cocoa's":"quick_service",
   "Little Wok":"quick_service","Portable Smart Bar":"quick_service",
-  "Great Oak Steakhouse":"fine_dining","Pisano's Italiano":"fine_dining",
+  "Great Oak Steakhouse":"great_oak","Pisano's Italiano":"fine_dining",
   "Umi Sushi":"umi_sushi",
   "1882 Cantina":"cantina","Kelsey's":"kelseys","Journey's End":"casual_dining",
   "Bamboo":"asian_dining","Blazing Noodle":"asian_dining",
 };
 const STANDARDS = {
   fine_dining: { scoreType:"scale5", sections: FINE_DINING_SECTIONS, roleRollups: FINE_DINING_ROLE_ROLLUPS },
+  great_oak:   { scoreType:"scale5", sections: FINE_DINING_SECTIONS.concat(GREAT_OAK_EXTRA_SECTIONS), roleRollups: GREAT_OAK_ROLE_ROLLUPS },
   umi_sushi:   { scoreType:"scale5", sections: FINE_DINING_SECTIONS.concat(UMI_EXTRA_SECTIONS), roleRollups: UMI_ROLE_ROLLUPS },
   casual_dining:{ scoreType:"scale5", sections: CASUAL_DINING_SECTIONS, roleRollups: CASUAL_DINING_ROLE_ROLLUPS },
   cantina:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(CANTINA_EXTRA_SECTIONS), roleRollups: CANTINA_ROLE_ROLLUPS },
@@ -1452,6 +1470,8 @@ function onOutletChange(){
     subEl.textContent = "Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.";
   } else if (standardKey === "fine_dining"){
     subEl.textContent = "Evaluated against the Forbes Travel Guide / AAA 4 Diamond fine dining standard \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+  } else if (standardKey === "great_oak"){
+    subEl.textContent = "Fine dining standard plus a dedicated Bar Service section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
   } else if (standardKey === "umi_sushi"){
     subEl.textContent = "Fine dining standard plus dedicated Sushi Bar and Bar Service sections \u2014 scored 1-5 per question (or N/A if it doesn't apply). Use Area Evaluated if this visit focused on one area.";
   } else if (standardKey === "cantina"){
