@@ -614,6 +614,7 @@
         <option>Journey's End</option>
         <option>Bamboo</option>
         <option>Blazing Noodle</option>
+        <option value="__foodcourt__">Food Court &mdash; All Outlets</option>
         <option>Pronto</option>
         <option>Agave</option>
         <option>American Classics</option>
@@ -796,6 +797,7 @@
             <option>Journey's End</option>
             <option>Bamboo</option>
             <option>Blazing Noodle</option>
+            <option value="__foodcourt__">Food Court &mdash; All Outlets</option>
             <option>Pronto</option>
             <option>Agave</option>
             <option>American Classics</option>
@@ -849,6 +851,7 @@
             <option>Journey's End</option>
             <option>Bamboo</option>
             <option>Blazing Noodle</option>
+            <option value="__foodcourt__">Food Court &mdash; All Outlets</option>
             <option>Pronto</option>
             <option>Agave</option>
             <option>American Classics</option>
@@ -969,6 +972,7 @@
             <option>Journey's End</option>
             <option>Bamboo</option>
             <option>Blazing Noodle</option>
+            <option value="__foodcourt__">Food Court &mdash; All Outlets</option>
             <option>Pronto</option>
             <option>Agave</option>
             <option>American Classics</option>
@@ -1087,7 +1091,18 @@ const LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUAAAAFACAY
    change any of them to whatever you actually want to hand out. */
 const SHOPPER_PASSCODE = "shopper2026";
 const DIRECTOR_PASSCODE = "pechanga2026";
+/* "Food Court" is a combined scope covering the whole Temptations Food
+   Walk lineup (not Blends, which is its own Quick Service stall) - one
+   login for a manager who oversees the whole food court rather than a
+   single stall. */
+const FOOD_COURT_OUTLETS = [
+  "Pronto", "Agave", "American Classics", "Pechanga Fried Chicken",
+  "Caf\u00e9 Cocoa's", "Little Wok", "Portable Smart Bar"
+];
+const FOOD_COURT_SCOPE = "__foodcourt__";
+
 const OUTLET_PASSCODES = {
+  [FOOD_COURT_SCOPE]: "foodcourt2026",
   "Great Oak Steakhouse": "greatoak2026",
   "Pisano's Italiano": "pisanos2026",
   "Umi Sushi": "umisushi2026",
@@ -1651,7 +1666,8 @@ function applyRolePermissions(){
     showView('new');
 
   } else if (currentRole === 'outlet'){
-    roleLabelEl.textContent = currentOutletScope + ' \u2014 Outlet View';
+    const scopeLabel = currentOutletScope === FOOD_COURT_SCOPE ? 'Food Court (All Outlets)' : currentOutletScope;
+    roleLabelEl.textContent = scopeLabel + ' \u2014 Outlet View';
     document.getElementById('tabNewBtn').style.display = "none";
     lockOutletFilters();
     showView('history');
@@ -2145,7 +2161,7 @@ function renderHistory(){
   const scoped = rangeFilter ? filterByDateRange(allEvals, parseInt(rangeFilter,10)) : allEvals.slice();
 
   let rows = scoped.slice();
-  if (outletFilter) rows = rows.filter(r=>r.outlet===outletFilter);
+  if (outletFilter) rows = rows.filter(r => outletMatchesFilter(r.outlet, outletFilter));
   if (actionFilter) rows = rows.filter(r=>r.actionKey===actionFilter);
 
   // Stat cards
@@ -2350,15 +2366,15 @@ function renderSkillsInsights(){
   if (!ctx) return;
 
   const outletFilter = document.getElementById('filterSkillsOutlet') ? document.getElementById('filterSkillsOutlet').value : "";
-  const scopedEvals = outletFilter ? allEvals.filter(r=>r.outlet===outletFilter) : allEvals;
+  const scopedEvals = outletFilter ? allEvals.filter(r => outletMatchesFilter(r.outlet, outletFilter)) : allEvals;
 
   const scopeNote = document.getElementById('skillsScopeNote');
   const listScopeNote = document.getElementById('skillsListScopeNote');
-  const scopeLabel = outletFilter ? `for ${outletFilter}` : "across all outlets and evaluations";
+  const scopeLabel = outletFilter ? `for ${outletFilterLabel(outletFilter)}` : "across all outlets and evaluations";
   const countNote = scopedEvals.length ? ` Based on ${scopedEvals.length} evaluation${scopedEvals.length===1?'':'s'}.` : "";
   scopeNote.textContent = `Every question is tagged to one of the 10 Essential Soft Skills. This shows where coaching effort will move the needle most, ${scopeLabel}.${countNote}`;
   listScopeNote.textContent = outletFilter
-    ? `Skills below 92% for ${outletFilter}, worst first.`
+    ? `Skills below 92% for ${outletFilterLabel(outletFilter)}, worst first.`
     : "Skills below 92% across all recorded evaluations, worst first.";
 
   const chartWrap = ctx.closest('.chart-wrap');
@@ -2650,6 +2666,16 @@ function renderRestaurantInsight(){
 }
 
 /* ---------------- TEAM MEMBER INSIGHT ---------------- */
+function outletMatchesFilter(evalOutlet, filterValue){
+  if (!filterValue) return true;
+  if (filterValue === FOOD_COURT_SCOPE) return FOOD_COURT_OUTLETS.includes(evalOutlet);
+  return evalOutlet === filterValue;
+}
+
+function outletFilterLabel(filterValue){
+  return filterValue === FOOD_COURT_SCOPE ? "the Food Court (all outlets)" : filterValue;
+}
+
 function normalizeStaffName(raw){
   return (raw || '').replace(/\s+/g, ' ').trim();
 }
@@ -2712,7 +2738,7 @@ function renderTeamInsight(){
   const sortMode = document.getElementById('teamSortMode') ? document.getElementById('teamSortMode').value : "score";
   const searchTerm = document.getElementById('teamSearchInput') ? document.getElementById('teamSearchInput').value.trim().toLowerCase() : "";
 
-  const scopedEvals = outletFilter ? allEvals.filter(r => r.outlet === outletFilter) : allEvals;
+  const scopedEvals = outletFilter ? allEvals.filter(r => outletMatchesFilter(r.outlet, outletFilter)) : allEvals;
   let roster = buildStaffRoster(scopedEvals);
 
   if (roleFilter){
