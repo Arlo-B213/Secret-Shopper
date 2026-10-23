@@ -167,6 +167,7 @@
   }
   .qrow:last-child{border-bottom:none;}
   .qtext{font-size:13.6px; line-height:1.42; color:#332f24;}
+  .tier-note{font-size:12px; font-style:italic; color:#6a6552; margin-top:4px; max-width:640px;}
   .qtag{
     display:inline-block; font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;
     color:var(--navy-700); background:#f5e6e6; border:1px solid #e3c3c3; border-radius:20px;
@@ -816,6 +817,7 @@
             <option value="dia_three">Three Diamond (Dining)</option>
             <option value="dia_approved">Approved (Dining)</option>
             <option value="dia_below">Below Approved (Dining)</option>
+            <option value="dia_unmet">Requirements Not Met (Dining)</option>
             <option value="verbal">85&ndash;91% &mdash; Verbal Warning</option>
             <option value="written">&le;84% &mdash; Written Warning</option>
           </select>
@@ -1542,6 +1544,189 @@ const ASIAN_DINING_ROLE_ROLLUPS = CASUAL_DINING_ROLE_ROLLUPS.concat([
 
 /* Maps each outlet to its standard, and each fine-dining standard to its
    section list + role roll-up definitions. */
+/* =========================================================================
+   AAA DIAMOND GUIDELINES (AAA Restaurant Requirements & Diamond Guidelines)
+   Added to every dining outlet (fine, casual, Asian). Each outlet has a target
+   Diamond tier; every attribute question shows AAA's descriptor for that tier
+   and the shopper answers Yes (meets it) / No (falls short) / N/A.
+   Quick-service and Food Court outlets do not use these sections.
+   ========================================================================= */
+const OUTLET_TARGET_TIER = {
+  "Great Oak Steakhouse":"four", "Pisano's Italiano":"four", "Umi Sushi":"four",
+  "1882 Cantina":"three", "Kelsey's":"three", "Journey's End":"three",
+  "Bamboo":"three", "Blazing Noodle":"three",
+};
+const TIER_LABELS = { approved:"Approved", three:"Three Diamond", four:"Four Diamond", five:"Five Diamond" };
+
+/* The 13 mandatory Diamond Program requirements. Any "No" means the restaurant
+   cannot be designated, no matter how it scores on the guidelines. */
+const AAA_REQ_SECTION = { key:"aaa_req", name:"AAA Program Requirements (all must be Yes)", role:"Management", questions:[
+  { t:"All facilities directly associated with the establishment are clean and well maintained throughout", skill:"Attention to Detail" },
+  { t:"All food and beverage is wholesome, free from contamination and properly handled and stored", skill:"Attention to Detail" },
+  { t:"The establishment provides AAA members value in all aspects of operation", skill:"Guest Engagement & Hospitality Mindset" },
+  { t:"No AAA branding (logo, Diamond designations, badges) is used without AAA's prior written consent", skill:"Professionalism & Appearance" },
+  { t:"The establishment is appropriately located for business or leisure travel", skill:"Professionalism & Appearance" },
+  { t:"The establishment assists AAA in the resolution of member complaints", skill:"Conflict Resolution" },
+  { t:"All staff conduct business in a professional and ethical manner, providing attentive, conscientious service", skill:"Professionalism & Appearance" },
+  { t:"Management or a designated representative is readily accessible at all times for guest needs or requests", skill:"Guest Engagement & Hospitality Mindset" },
+  { t:"The primary business operation is directly related to the preparation and service of food", skill:"Professionalism & Appearance" },
+  { t:"Management readily provides establishment information requested by AAA on a continuing basis", skill:"Communication Clarity" },
+  { t:"The establishment is in compliance with all local, state and federal codes", skill:"Professionalism & Appearance" },
+  { t:"Associated facilities for guest use (banquet rooms, bakeries, gift shops) meet the same requirements", skill:"Attention to Detail" },
+  { t:"Illumination is adequate in all public areas, including corridors, walkways, stairways, landings and parking areas", skill:"Attention to Detail" },
+]};
+
+/* [name, skill, Approved, Three Diamond, Four Diamond, Five Diamond] */
+const AAA_FOOD_ATTRS = [
+  ["Food placement & visual appeal","Attention to Detail",
+   "Common concepts are noticeably enhanced; limited use of common garnishes, primarily ornamental (parsley, lemon wedge, lettuce leaf, kale, cherry tomato)",
+   "Well-coordinated, using innovative or expanded concepts implemented in precise fashion; garnishes are less familiar, with refined placement or techniques (patterned slicing, fine dice, julienne, carved vegetables or fruits, specialty greens, flowers, herbs)",
+   "Artistic, detailed concept with well-balanced portions and a variety of textures, colors and ingredients implemented in precise fashion; garnishes are artistically integrated as ornamental or flavor enhancements",
+   "Extremely imaginative, uniquely exclusive concepts with well-balanced portions and a variety of textures, colors and ingredients; each ingredient and plate component supports a leading-edge plate design; food and garnish are in perfect harmony"],
+  ["Dishware","Attention to Detail",
+   "Predominantly basic quality ceramic, glass or washable synthetic (polycarbonate / melamine) or woven baskets; some disposable condiment containers or side dishes",
+   "Ceramic, glass or washable synthetic; noticeable enhancements to design and materials with appropriate accessories (bread & butter plates, ramekins, pitchers)",
+   "The finest quality materials and design throughout (fine china, custom ceramic, porcelain) with appropriate accessories; some use of varied and unique pieces as part of the food presentation",
+   "The finest quality materials and design throughout with appropriate accessories; predominant use of varied and unique pieces as part of the food presentation (creative packaging)"],
+  ["Ingredients","Attention to Detail",
+   "Predominantly staple items with some uncommon items; some evidence of convenience foods",
+   "Blend of staple and uncommon, with some unique (artisanal) items; predominantly fresh and/or specialty; no evidence of convenience foods",
+   "Blend of staple and uncommon, with increased use of uncommon and unique (artisanal) items; predominantly fresh and/or specialty; no evidence of convenience foods",
+   "Predominant use of fresh, unique (artisanal) and uncommon items; most ingredients are unique to each dish; no evidence of convenience foods"],
+  ["Preparation","Attention to Detail",
+   "Menu incorporates an increased variety of common food preparation techniques; typical of a professionally-trained cook",
+   "Menu incorporates some advanced preparation techniques prepared a la minute (to order, not prepped in advance and held); typical of a highly experienced chef",
+   "Menu incorporates an increased variety of advanced cooking techniques prepared a la minute; typical of a series of professionally-trained chefs",
+   "Menu incorporates an increased variety of expert-based cooking techniques; food is prepared a la minute in a highly imaginative and unique manner; commensurate with a mastery of the culinary arts, typical of a renowned professional chef"],
+  ["Standard menu rotation (excluding daily specials)","Adaptability",
+   "Limited menu selections change seasonally",
+   "Most menu selections change seasonally",
+   "Some menu selections change daily/weekly, driven by market availability; a chef's tasting menu is offered, typically in addition to a la carte selections",
+   "Most menu selections change daily/weekly, driven by market availability; a chef's tasting menu is offered, typically in addition to a la carte selections"],
+];
+const AAA_SERVICE_ATTRS = [
+  ["Initial greeting","Guest Engagement & Hospitality Mindset",
+   "Handled by an associate with multiple responsibilities (cashier/hostess/waitperson); when unattended, a sign advises guests to please wait to be seated",
+   "A solely dedicated greeter handles the guest's reservation, arrival and determines seating",
+   "Professional host/hostess is engaging, well-practiced and knowledgeable; reservation time is honored within ten minutes, and if delayed the attendant is adept at making proper accommodations without hesitation",
+   "Professional host/hostess is engaging, well-practiced and knowledgeable; reservation honored within ten minutes; greeter uses the guest's name and offers personal assistance with coats, packages, umbrellas, etc."],
+  ["Seating","Guest Engagement & Hospitality Mindset",
+   "Associate leads guest to the table and advises the server's name; menu is at the table or presented as the guest is seated",
+   "Associate is engaging and initiates a conversation as the guest is seated; menu and beverage lists are presented at the appropriate time and offered directly to each guest; extra place settings are removed if necessary",
+   "Associate is engaging and well-practiced, with personal assistance such as moving a chair and/or table; menu and beverage lists are offered directly to each guest; table is preset per reservation",
+   "Guest's name is used as appropriate; anticipates the guest's needs; well-practiced personal assistance; menus and beverage lists offered directly to each guest; table is preset per reservation"],
+  ["Food & beverage service style","Teamwork & Collaboration",
+   "Some self-service aspects may be evident (digital ordering and payment) but table service is predominant; single server responsibility is clearly evident; service is practical and deliberate",
+   "Table service is predominant with no self-service aspects; team approach is clearly evident; service style is skilled, measured and accommodating",
+   "Table service with a clearly evident team approach and distinguished delivery by well-defined roles; proficient with a strong desire to be of assistance; elevated level of personal attention adapted to the guest's convenience and comfort",
+   "As Four Diamond, exceptionally efficient while seamlessly exceeding guest expectations; all staff display expert menu knowledge and courses are described as they are served; meticulous personal attention and an unconditional desire to be of service"],
+  ["Beverage information","Communication Clarity",
+   "Enhanced beverage reference available, including additional descriptions of specialty drinks, wines and/or spirits",
+   "Detailed beverage reference available; a knowledgeable staff representative is available to provide assistance",
+   "Detailed beverage reference available; most associates are well-versed on providing menu-specific assistance with beverage selection (such as wine/beer pairings)",
+   "Detailed beverage reference available; expert beverage knowledge is readily available (professional mixologist and sommelier)"],
+  ["Check settlement","Professionalism & Appearance",
+   "Server handles check settlement; presentation materials are basic (check/receipt only, a common plate, plastic tray or branded credit card folder)",
+   "Server handles check settlement; presentation materials are enhanced in a manner relative to the overall theme",
+   "Server is discreet in anticipating and presenting the check; presentation materials are consistent with the upscale decor and theme of the establishment",
+   "Server is discreet in anticipating and presenting the check; presentation consistent with the upscale decor; includes mignardises and/or a take-home gift (personalized menu, specialty item, boxed chocolates)"],
+  ["Departure","Guest Engagement & Hospitality Mindset",
+   "Server thanks the guest",
+   "Server thanks the guest; host/hostess acknowledges the guest's departure",
+   "Server thanks the guest; multiple staff members acknowledge the guest's departure",
+   "Server thanks the guest; multiple staff acknowledge departure; the guest's name is used; staff anticipates needs (validate parking, arrange transportation, offer to retrieve coats)"],
+];
+const AAA_VIBE_ATTRS = [
+  ["Materials (colors, fabrics, textures, fixtures)","Attention to Detail",
+   "Obvious enhancements to materials","Significant enhancements to materials","Upscale materials","Luxurious and/or unique materials"],
+  ["Overall impression","Attention to Detail",
+   "Practical and purposeful; enhanced level of overall comfort and appeal; good balance between a welcoming ambience and maximum seating capacity",
+   "Good balance between a welcoming ambience and maximum seating capacity; advanced level of overall comfort and appeal; an enriched and efficient guest experience",
+   "Design is highly functional and well-suited for comfort and extended dining; provides a distinguished guest experience",
+   "Luxurious, leading-edge (innovative, intelligent, efficient) design well-suited for comfort and extended dining; provides a world-class guest experience"],
+  ["Entrance / foyer","Attention to Detail",
+   "Clearly-defined reception area/stand",
+   "Clearly-defined reception area/stand; distinct separation between the reception area and dining areas (diners are not distracted by waiting guests)",
+   "Clearly-defined reception area; distinct separation from dining areas; design characteristics are clearly upscale",
+   "Clearly-defined reception area; distinct separation from dining areas; design characteristics are clearly luxurious and uniquely appointed"],
+  ["Waiting area and/or lounge","Attention to Detail",
+   "Small waiting area or bar with seating",
+   "Appropriately-sized waiting area or lounge (with tables, chairs/booths)",
+   "Appropriately-sized waiting area or lounge; design characteristics are clearly upscale and distinctly separate from the main dining area",
+   "Appropriately-sized waiting area or lounge; design characteristics are clearly luxurious and uniquely appointed"],
+  ["Tabletop covers","Attention to Detail",
+   "Bare surfaces; modest enhancements such as paper placemats, paper/vinyl/plastic tablecloths, butcher paper/acrylic overlay",
+   "If exposed, table surfaces are of a decorative style with a polished/lacquered or glass overlay; synthetic treatments (polyester, poplin, spandex, leatherette tablecloths, placemats or runners)",
+   "If exposed, table surfaces are designer-quality materials (highly polished fine wood, granite, marble); enhanced with natural-quality treatments (cotton-synthetic blends, leather, rattan, bamboo)",
+   "Tables are padded or double tablecloths are used as silencers; tablecloths are natural fabrics with a luxurious feel (typically cotton/linen) with a freshly-pressed appearance"],
+  ["Napery","Attention to Detail",
+   "Paper napkins; enhanced design or weight","Synthetic cloth napkins","Natural fabrics (typically cotton)","Luxurious linen"],
+  ["Table setting enhancements","Attention to Detail",
+   "Common overall appeal; utensils rolled in a napkin, paper placemats, preset menu, children's games and/or promotional flyers",
+   "Trendy overall appeal; cloth napkin folds, preset utensils and glassware; decorative table enhancement (flowers, candles or ornamental pieces)",
+   "Well-coordinated, distinguished effect; cloth napkin folds, preset utensils and glassware; upscale table enhancement (flowers, candles or ornamental pieces)",
+   "Well-coordinated, world-class effect; cloth napkin folds, preset utensils and glassware; luxurious table enhancement; charger or show plate"],
+  ["Flatware","Attention to Detail",
+   "Washable materials, everyday quality of basic design, lightweight grade",
+   "Washable materials; medium-weight grade stainless steel with obvious matching design enhancements",
+   "The finest quality stainless steel (18/10 or 18/8), heavyweight grade with upscale design enhancements; coordinated set with appropriate pieces for menu offerings",
+   "Silver plated or finer; coordinated set throughout with appropriate pieces for menu offerings"],
+  ["Glassware","Attention to Detail",
+   "Washable plastic (polycarbonate/melamine) or heavyweight glass of common style",
+   "Medium-weight glass with distinct style; appropriate pieces for beverage offerings",
+   "Lightweight glass of the finest quality; appropriate pieces for beverage offerings",
+   "Lightweight glass of the finest quality; appropriate pieces; consistent throughout all aspects of beverage service (barware comparable to table settings)"],
+  ["Chairs / stools / benches","Attention to Detail",
+   "Enhanced design for good comfort",
+   "Enhanced design for good comfort; well-coordinated materials and design with coverings or padding for sustainable comfort",
+   "Upscale materials and design with ample padding on seat and back for extended comfort",
+   "Luxurious; materials and design provide the highest degree of comfort"],
+];
+/* AAA "Subjective Impressions": a typical offering for the target tier is a
+   Yes; clearly atypical (better or worse) is judged by the inspector's notes. */
+const AAA_FOOD_IMPRESSIONS = [
+  ["Beverages: quality and variety (sparkling and still water, diverse wines at higher tiers)","Attention to Detail"],
+  ["Bread: availability, appropriateness for the cuisine and quality","Attention to Detail"],
+  ["Competency: food prepared and cooked as ordered; colors, textures and consistency preserved","Attention to Detail"],
+  ["Complimentary chef's extra (amuse-bouche, intermezzo, petits fours); typically Four and Five Diamond only, otherwise N/A","Guest Engagement & Hospitality Mindset"],
+  ["Portion size appropriate to the cuisine, style and designation level","Attention to Detail"],
+  ["Taste: ingredients, sauces and seasonings complement each other","Attention to Detail"],
+  ["Temperature of the food was appropriate","Attention to Detail"],
+  ["Value: cost is appropriate in relation to the food, service and decor","Guest Engagement & Hospitality Mindset"],
+  ["Variety fits guest expectations and the restaurant concept","Attention to Detail"],
+];
+const AAA_SERVICE_IMPRESSIONS = [
+  ["Attentiveness: servers are thoughtful, caring and focused on guest satisfaction","Active Listening"],
+  ["Competency: staff capabilities, awareness and aptitude for meeting guest needs","Professionalism & Appearance"],
+  ["Congeniality: cordial staff in all areas","Positive Attitude & Resilience"],
+  ["Guest feels well served: exemplary hospitality by the end of the experience","Guest Engagement & Hospitality Mindset"],
+  ["Knowledge: staff answer questions about food, beverage and the restaurant efficiently and correctly","Communication Clarity"],
+  ["Mobile-enabled service options enhance rather than detract from service (N/A if not offered)","Adaptability"],
+  ["Reservations: online or phone process is easy and efficient","Time Management"],
+  ["Special requests are accommodated within reason, including chef menu alterations for taste, preference or health","Adaptability"],
+  ["Timeliness: the experience was well-paced for the guest's needs","Time Management"],
+];
+const AAA_VIBE_IMPRESSIONS = [
+  ["Ambience: impact of location, view or other surroundings on the dining experience","Attention to Detail"],
+  ["Cleanliness throughout the restaurant","Attention to Detail"],
+  ["Comfort: functionality and overall impression of the furnishings","Attention to Detail"],
+  ["Condition throughout the restaurant","Attention to Detail"],
+  ["Illumination: functionality, design and effect of the lighting","Attention to Detail"],
+  ["Information design: character of the menu, wine list and business cards","Attention to Detail"],
+  ["Noise level does not detract from the dining experience","Attention to Detail"],
+];
+function buildAaaSection(key, name, attrs, impressions){
+  return { key, name, role:"", aaa:true, questions:
+    attrs.map(a=>({ t:a[0], skill:a[1], tiers:{ approved:a[2], three:a[3], four:a[4], five:a[5] } }))
+      .concat(impressions.map(i=>({ t:i[0], skill:i[1] }))) };
+}
+const AAA_PILLAR_SECTIONS = [
+  buildAaaSection("aaa_food", "AAA Diamond Guidelines: Food (50% of designation)", AAA_FOOD_ATTRS, AAA_FOOD_IMPRESSIONS),
+  buildAaaSection("aaa_service", "AAA Diamond Guidelines: Service (35% of designation)", AAA_SERVICE_ATTRS, AAA_SERVICE_IMPRESSIONS),
+  buildAaaSection("aaa_vibe", "AAA Diamond Guidelines: Vibe (15% of designation)", AAA_VIBE_ATTRS, AAA_VIBE_IMPRESSIONS),
+];
+function withAaaSections(base){ return [AAA_REQ_SECTION].concat(base, AAA_PILLAR_SECTIONS); }
+
 const OUTLET_STANDARD = {
   "Pronto":"quick_service","Agave":"quick_service","American Classics":"quick_service",
   "Pechanga Fried Chicken":"quick_service","Cafe Cocoa's":"quick_service","Caf\u00e9 Cocoa's":"quick_service",
@@ -1552,13 +1737,13 @@ const OUTLET_STANDARD = {
   "Bamboo":"asian_dining","Blazing Noodle":"asian_dining",
 };
 const STANDARDS = {
-  fine_dining: { scoreType:"scale5", sections: FINE_DINING_SECTIONS, roleRollups: FINE_DINING_ROLE_ROLLUPS },
-  great_oak:   { scoreType:"scale5", sections: FINE_DINING_SECTIONS.concat(GREAT_OAK_EXTRA_SECTIONS), roleRollups: GREAT_OAK_ROLE_ROLLUPS },
-  umi_sushi:   { scoreType:"scale5", sections: FINE_DINING_SECTIONS.concat(UMI_EXTRA_SECTIONS), roleRollups: UMI_ROLE_ROLLUPS },
-  casual_dining:{ scoreType:"scale5", sections: CASUAL_DINING_SECTIONS, roleRollups: CASUAL_DINING_ROLE_ROLLUPS },
-  cantina:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(CANTINA_EXTRA_SECTIONS), roleRollups: CANTINA_ROLE_ROLLUPS },
-  kelseys:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(KELSEYS_EXTRA_SECTIONS), roleRollups: KELSEYS_ROLE_ROLLUPS },
-  asian_dining:{ scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(ASIAN_DINING_EXTRA_SECTIONS), roleRollups: ASIAN_DINING_ROLE_ROLLUPS },
+  fine_dining: { scoreType:"scale5", sections: withAaaSections(FINE_DINING_SECTIONS), roleRollups: FINE_DINING_ROLE_ROLLUPS },
+  great_oak:   { scoreType:"scale5", sections: withAaaSections(FINE_DINING_SECTIONS.concat(GREAT_OAK_EXTRA_SECTIONS)), roleRollups: GREAT_OAK_ROLE_ROLLUPS },
+  umi_sushi:   { scoreType:"scale5", sections: withAaaSections(FINE_DINING_SECTIONS.concat(UMI_EXTRA_SECTIONS)), roleRollups: UMI_ROLE_ROLLUPS },
+  casual_dining:{ scoreType:"scale5", sections: withAaaSections(CASUAL_DINING_SECTIONS), roleRollups: CASUAL_DINING_ROLE_ROLLUPS },
+  cantina:     { scoreType:"scale5", sections: withAaaSections(CASUAL_DINING_SECTIONS.concat(CANTINA_EXTRA_SECTIONS)), roleRollups: CANTINA_ROLE_ROLLUPS },
+  kelseys:     { scoreType:"scale5", sections: withAaaSections(CASUAL_DINING_SECTIONS.concat(KELSEYS_EXTRA_SECTIONS)), roleRollups: KELSEYS_ROLE_ROLLUPS },
+  asian_dining:{ scoreType:"scale5", sections: withAaaSections(CASUAL_DINING_SECTIONS.concat(ASIAN_DINING_EXTRA_SECTIONS)), roleRollups: ASIAN_DINING_ROLE_ROLLUPS },
 };
 
 /* =========================================================================
@@ -1603,6 +1788,7 @@ const DIAMOND_BAND_STYLE = {
   four:{pill:"pill-green",chip:"chip-green",guidance:"Four Diamond: distinctive fine dining, well-served amid upscale ambience. Review the report with the team and highlight what to keep doing."},
   three:{pill:"pill-amber",chip:"chip-amber",guidance:"Three Diamond: trendy food skillfully presented in a remarkable setting, but below Four Diamond. Review the lowest-scoring pillar with the team and build an action plan."},
   approved:{pill:"pill-red",chip:"chip-red",guidance:"Approved: meets AAA's baseline standards only. Build an action plan for the lowest-scoring pillar and sections, and review it with the team."},
+  unmet:{pill:"pill-red",chip:"chip-red",guidance:"One or more AAA Diamond Program requirements was not met, so the restaurant cannot be designated regardless of its guideline scores. Correct the failed requirements immediately and review with management."},
   below:{pill:"pill-red",chip:"chip-red",guidance:"Below the AAA Approved level on this visit. Remedy immediately, build an action plan, and involve the Assistant Director of F&B and the Training Manager as needed."},
 };
 function diamondBand(d){
@@ -1620,12 +1806,21 @@ const PILLAR_BY_SECTION = {
   speed:"service", guestservice:"service", bar:"service", team:"service",
   // Vibe (15%)
   diningroom:"vibe", tablesetting:"vibe", ambiance:"vibe", facility:"vibe",
+  // AAA Diamond Guidelines sections (dining outlets)
+  aaa_food:"food", aaa_service:"service", aaa_vibe:"vibe",
 };
 /* items: [{ section, pts, max }] with pts/max already N/A-adjusted. Pillars with
-   no answered questions are dropped and the remaining weights re-normalised. */
-function diamondFromItems(items){
+   no answered questions are dropped and the remaining weights re-normalised.
+   Dining outlets (AAA sections present) are banded against their target tier:
+   >=90% keeps the target, then one tier lower per step (80 / 65 / 50). Any "No"
+   in the AAA Program Requirements means the restaurant cannot be designated. */
+const DIAMOND_ORDER = ["five","four","three","approved","below"];
+function diamondFromItems(items, target){
+  const req = items.find(i=>i.section==='aaa_req');
+  const aaaMode = items.some(i=>/^aaa_(food|service|vibe)$/.test(i.section) && i.max>0);
+  const use = aaaMode ? items.filter(i=>/^aaa_(food|service|vibe)$/.test(i.section)) : items;
   const acc = { food:{pts:0,max:0}, service:{pts:0,max:0}, vibe:{pts:0,max:0} };
-  items.forEach(it=>{
+  use.forEach(it=>{
     const p = PILLAR_BY_SECTION[it.section];
     if (!p || !it.max) return;
     acc[p].pts += it.pts; acc[p].max += it.max;
@@ -1639,8 +1834,20 @@ function diamondFromItems(items){
   });
   if (!wsum) return null;
   const weighted = total / wsum;
-  const tier = DIAMOND_TIERS.find(t => weighted >= t.min);
-  return { food:out.food, service:out.service, vibe:out.vibe, weighted:Math.round(weighted*10)/10, tier:tier.key, label:tier.label };
+  let tierKey;
+  if (aaaMode && target){
+    const steps = weighted >= 90 ? 0 : weighted >= 80 ? 1 : weighted >= 65 ? 2 : weighted >= 50 ? 3 : 4;
+    tierKey = DIAMOND_ORDER[Math.min(DIAMOND_ORDER.indexOf(target) + steps, 4)];
+  } else {
+    tierKey = DIAMOND_TIERS.find(t => weighted >= t.min).key;
+  }
+  const reqFailed = !!(aaaMode && req && req.max > 0 && req.pts < req.max);
+  const tierDef = DIAMOND_TIERS.find(t => t.key === tierKey);
+  const result = { food:out.food, service:out.service, vibe:out.vibe, weighted:Math.round(weighted*10)/10,
+                   tier: reqFailed ? "unmet" : tierKey, label: reqFailed ? "Program Requirements Not Met" : tierDef.label };
+  if (aaaMode && target) result.target = target;
+  if (reqFailed) result.reqFailed = true;
+  return result;
 }
 /* Works for both live state and saved records, so history gets a rating too. */
 function isScaleRecord(r){ return !!STANDARDS[r.standard] && r.scoreType !== "binary"; }
@@ -1651,7 +1858,7 @@ function diamondFromRecord(r){
   return diamondFromItems(r.sections.map(s=>{
     if (scale) return { section:s.key, pts:(s.avg||0)*(s.count||0), max:5*(s.count||0) };
     return { section:s.key, pts:s.points||0, max:s.max||0 };
-  }));
+  }), r.targetTier || OUTLET_TARGET_TIER[r.outlet]);
 }
 function diamondFromState(){
   const scale = false;
@@ -1662,7 +1869,7 @@ function diamondFromState(){
     e.max += scale ? 5 : 1;
     e.pts += scale ? q.answer : (q.answer === 'yes' ? 1 : 0);
   });
-  return diamondFromItems(Object.values(per));
+  return diamondFromItems(Object.values(per), OUTLET_TARGET_TIER[document.getElementById('f-outlet').value]);
 }
 
 /* =========================================================================
@@ -1853,7 +2060,11 @@ function buildSections(outlet){
   recalcLiveScore();
 }
 
+function qDisplayText(q, target){
+  return q.tiers && target ? q.t + " \u2014 meets " + TIER_LABELS[target] + " standard?" : q.t;
+}
 function buildBinarySectionPanel(section, container){
+  const target = OUTLET_TARGET_TIER[document.getElementById('f-outlet').value] || null;
   const panel = document.createElement('div');
   panel.className = "panel section-block";
   const roleTag = section.role ? ` <span class="role-chip">${section.role}</span>` : "";
@@ -1877,8 +2088,9 @@ function buildBinarySectionPanel(section, container){
     row.className = "qrow";
     row.innerHTML = `
       <div>
-        <div class="qtext">${q.t}</div>
+        <div class="qtext">${qDisplayText(q, target)}</div>
         <div class="qtag">${q.skill}</div>
+        ${q.tiers && target ? `<div class="tier-note">AAA ${TIER_LABELS[target]}: ${q.tiers[target]}</div>` : ''}
         <div class="note-line" id="note-wrap-${qid}" style="display:none;">
           <input type="text" placeholder="What did they say/do? (optional quote or note)" oninput="setNote('${qid}', this.value)">
         </div>
@@ -1987,6 +2199,7 @@ function submitEvaluation(){
   if (max === 0){ toast("Answer at least one question before saving."); return; }
 
   const std = STANDARDS[standardKey];
+  const target = OUTLET_TARGET_TIER[outlet] || null;
   const templateSections = std
     ? std.sections
     : SECTION_TEMPLATE.filter(s => !s.barOnly || outlet === "Portable Smart Bar");
@@ -2000,7 +2213,7 @@ function submitEvaluation(){
         smax += 1;
         if (st.answer === 'yes') spts += 1;
       }
-      return { text: q.t, skill: q.skill, answer: st.answer, note: st.note || "" };
+      return { text: qDisplayText(q, target), skill: q.skill, answer: st.answer, note: st.note || "" };
     });
     return {
       key: s.key, name: s.name, role: s.role || "", points: spts, max: smax,
@@ -2027,6 +2240,7 @@ function submitEvaluation(){
   };
 
   if (std){
+    if (target) record.targetTier = target;
     record.areaFocus = (standardKey === "umi_sushi" || standardKey === "great_oak") ? document.getElementById('f-areafocus').value : "";
     const sectionByKey = {}; sections.forEach(sec=> sectionByKey[sec.key]=sec);
     // Role roll-ups keep the 0-5 "avg" shape (yes-rate x 5) so Restaurant Insight
@@ -2157,7 +2371,7 @@ function renderHistory(){
   const statRow = document.getElementById('statRow');
   const total = scoped.length;
   const avg = total ? (scoped.reduce((a,r)=>a+r.percent,0)/total) : 0;
-  const needsAction = scoped.filter(r=>['verbal','written','dia_approved','dia_below'].includes(r.actionKey)).length;
+  const needsAction = scoped.filter(r=>['verbal','written','dia_approved','dia_below','dia_unmet'].includes(r.actionKey)).length;
   const unsigned = scoped.filter(r=> needsSignoff(r) && !(r.actionPlan&&r.actionPlan.signed)).length;
   const deltaHtml = rangeFilter ? computeAvgScoreDelta(parseInt(rangeFilter,10), scoped) : "";
   statRow.innerHTML = `
@@ -2206,7 +2420,7 @@ function diamondCellHtml(r){
 
 function bandLabel(key){
   return { celebrate:"Celebrate", acceptable:"Acceptable", verbal:"Verbal Warning", written:"Written Warning",
-           dia_five:"Five Diamond", dia_four:"Four Diamond", dia_three:"Three Diamond", dia_approved:"Approved", dia_below:"Below Approved" }[key] || "";
+           dia_five:"Five Diamond", dia_four:"Four Diamond", dia_three:"Three Diamond", dia_approved:"Approved", dia_below:"Below Approved", dia_unmet:"Requirements Not Met" }[key] || "";
 }
 
 function renderTrendChart(scoped){
@@ -2291,8 +2505,8 @@ function renderOutcomeChart(scoped){
   if (!ctx) return;
   const counts = {};
   scoped.forEach(r=>{ counts[r.actionKey] = (counts[r.actionKey]||0) + 1; });
-  const order = ['celebrate','acceptable','dia_five','dia_four','dia_three','verbal','written','dia_approved','dia_below'];
-  const colors = { celebrate:'#3f8f5f', acceptable:'#6fae87', dia_five:'#2f7a4d', dia_four:'#3f8f5f', dia_three:'#c98a2c', verbal:'#c98a2c', written:'#b3453f', dia_approved:'#b3453f', dia_below:'#7d2a26' };
+  const order = ['celebrate','acceptable','dia_five','dia_four','dia_three','verbal','written','dia_approved','dia_below','dia_unmet'];
+  const colors = { celebrate:'#3f8f5f', acceptable:'#6fae87', dia_five:'#2f7a4d', dia_four:'#3f8f5f', dia_three:'#c98a2c', verbal:'#c98a2c', written:'#b3453f', dia_approved:'#b3453f', dia_below:'#7d2a26', dia_unmet:'#5c1a17' };
   const present = order.filter(k=>counts[k]);
   const labels = present.map(k=>bandLabel(k));
   const data = present.map(k=>counts[k]);
