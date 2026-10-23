@@ -1577,19 +1577,17 @@ const OUTLET_TARGET_TIER = {
 };
 const TIER_LABELS = { approved:"Approved", three:"Three Diamond", four:"Four Diamond", five:"Five Diamond" };
 
-/* The 13 mandatory Diamond Program requirements. Any "No" means the restaurant
-   cannot be designated, no matter how it scores on the guidelines. */
+/* The mandatory Diamond Program requirements that apply to our outlets (AAA's
+   administrative ones, such as branding and complaint handling, are left out).
+   Any "No" means the restaurant cannot be designated, no matter how it scores
+   on the guidelines. */
 const AAA_REQ_SECTION = { key:"aaa_req", name:"AAA Program Requirements (all must be Yes)", role:"Management", questions:[
   { t:"All facilities directly associated with the establishment are clean and well maintained throughout", skill:"Attention to Detail" },
   { t:"All food and beverage is wholesome, free from contamination and properly handled and stored", skill:"Attention to Detail" },
-  { t:"The establishment provides AAA members value in all aspects of operation", skill:"Guest Engagement & Hospitality Mindset" },
-  { t:"No AAA branding (logo, Diamond designations, badges) is used without AAA's prior written consent", skill:"Professionalism & Appearance" },
   { t:"The establishment is appropriately located for business or leisure travel", skill:"Professionalism & Appearance" },
-  { t:"The establishment assists AAA in the resolution of member complaints", skill:"Conflict Resolution" },
   { t:"All staff conduct business in a professional and ethical manner, providing attentive, conscientious service", skill:"Professionalism & Appearance" },
   { t:"Management or a designated representative is readily accessible at all times for guest needs or requests", skill:"Guest Engagement & Hospitality Mindset" },
   { t:"The primary business operation is directly related to the preparation and service of food", skill:"Professionalism & Appearance" },
-  { t:"Management readily provides establishment information requested by AAA on a continuing basis", skill:"Communication Clarity" },
   { t:"The establishment is in compliance with all local, state and federal codes", skill:"Professionalism & Appearance" },
   { t:"Associated facilities for guest use (banquet rooms, bakeries, gift shops) meet the same requirements", skill:"Attention to Detail" },
   { t:"Illumination is adequate in all public areas, including corridors, walkways, stairways, landings and parking areas", skill:"Attention to Detail" },
