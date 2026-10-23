@@ -661,7 +661,7 @@
     <div class="view" id="view-new">
       <div class="panel">
         <h2>Visit Details</h2>
-        <p class="sub" id="outletSub">Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.</p>
+        <p class="sub" id="outletSub">Select an outlet to begin. Dining outlets use the AAA Diamond guidelines; the Food Court and Coffee Bar outlets have their own rating scales.</p>
         <div class="grid3">
           <div class="field">
             <label>Outlet</label>
@@ -733,6 +733,23 @@
           <div class="field">
             <label>Manager on Duty</label>
             <input type="text" id="f-manager" placeholder="If observed">
+          </div>
+        </div>
+        <div class="grid3" id="timingFields" style="display:none;margin-top:14px;">
+          <div class="field">
+            <label>Time Joined Line</label>
+            <input type="time" id="f-tline" oninput="updateTiming()">
+          </div>
+          <div class="field">
+            <label>Time Order Placed / Paid</label>
+            <input type="time" id="f-tpay" oninput="updateTiming()">
+          </div>
+          <div class="field">
+            <label>Time Food / Drink Received</label>
+            <input type="time" id="f-trecv" oninput="updateTiming()">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <p class="sub" id="timingSummary" style="margin:0;">Time in line: —  ·  Paid to received: —  ·  Total: —</p>
           </div>
         </div>
       </div>
@@ -825,7 +842,7 @@
         <div class="table-scroll">
           <table class="evals">
             <thead>
-              <tr><th>Date</th><th>Outlet</th><th>Shopper</th><th>Score</th><th>Band</th><th>AAA Diamond</th><th>Action Plan</th></tr>
+              <tr><th>Date</th><th>Outlet</th><th>Shopper</th><th>Score</th><th>Band</th><th>Rating</th><th>Action Plan</th></tr>
             </thead>
             <tbody id="historyTbody"></tbody>
           </table>
@@ -1729,10 +1746,238 @@ const AAA_PILLAR_SECTIONS = [
 ];
 function withAaaSections(base){ return [AAA_REQ_SECTION].concat(base, AAA_PILLAR_SECTIONS); }
 
+/* =========================================================================
+   COUNTER-SERVICE STANDARDS (Food Court and Coffee Bar)
+   AAA does not rate counter service, so these outlets have their own scales:
+     food_court : Pronto, Agave, American Classics, Pechanga Fried Chicken,
+                  Little Wok, Portable Smart Bar            -> 1-5 Stars
+     coffee_bar : Cafe Cocoa's, Blends                       -> Coffee Roast levels
+   Yes / No / N/A like every other outlet. Pillars are weighted; any "No" in the
+   Critical Items section caps the rating at its lowest level. The SOP action
+   tiers (100 / 92 / 85%) still apply underneath for follow-up.
+   Wait-time standards below are starting benchmarks, to be tuned against POS data.
+   ========================================================================= */
+const CF_GUEST_QS = [
+  { t:"Guest was acknowledged within 10 seconds, even if the team was busy (a look, a smile or \"be right with you\")", skill:"Guest Engagement & Hospitality Mindset" },
+  { t:"Greeting was warm and genuine, with eye contact and a smile", skill:"Guest Engagement & Hospitality Mindset" },
+  { t:"Team member was attentive and listened carefully to the guest's request", skill:"Active Listening" },
+  { t:"Team member answered menu questions confidently", skill:"Communication Clarity" },
+  { t:"A recommendation or add-on was offered naturally, without being pushy", skill:"Guest Engagement & Hospitality Mindset" },
+  { t:"Order was repeated back to the guest to confirm accuracy", skill:"Attention to Detail" },
+  { t:"A special request or customization was handled gracefully", skill:"Adaptability" },
+  { t:"Team members were upbeat, with positive and natural body language", skill:"Positive Attitude & Resilience" },
+  { t:"Team members interacted with each other positively", skill:"Teamwork & Collaboration" },
+  { t:"If something went wrong, the team fixed it calmly without being asked twice (N/A if nothing went wrong)", skill:"Conflict Resolution" },
+  { t:"Order was handed over with eye contact, a smile and a thank-you or \"enjoy\"", skill:"Guest Engagement & Hospitality Mindset" },
+  { t:"Team members were in clean uniforms with name tags visible and good hygiene", skill:"Professionalism & Appearance" },
+  { t:"The guest felt like a valued guest, not just a transaction", skill:"Guest Engagement & Hospitality Mindset" },
+  { t:"Based on this visit, the guest would return to and/or recommend this outlet", skill:"Guest Engagement & Hospitality Mindset" },
+];
+const COUNTER_STANDARDS = {
+  food_court: {
+    scale:"stars",
+    weights:{ guest:0.30, food:0.35, speed:0.20, env:0.15 },
+    pillarNames:{ guest:"Guest Experience", food:"Food Quality", speed:"Speed & Accuracy", env:"Environment" },
+    sections:[
+      { key:"cf_crit", name:"Critical Items (any No caps the rating)", questions:[
+        { t:"Team members washed hands and/or wore gloves when handling food", skill:"Professionalism & Appearance" },
+        { t:"Food was handled safely (clean utensils, no bare-hand contact with ready-to-eat food, nothing dropped and served)", skill:"Attention to Detail" },
+        { t:"Cash or card transaction was handled correctly, the amount was accurate and a receipt was offered", skill:"Attention to Detail" },
+        { t:"ID was checked where required (alcohol or other age-restricted items; N/A if not applicable)", skill:"Professionalism & Appearance" },
+        { t:"An allergy or ingredient question was answered honestly (N/A if not asked)", skill:"Communication Clarity" },
+      ]},
+      { key:"cf_guest", name:"Guest Experience (30%)", pillar:"guest", questions: CF_GUEST_QS },
+      { key:"cf_bar", name:"Bar Service (Portable Smart Bar)", pillar:"guest", barOnly:true, questions:[
+        { t:"Proper pour method used (shot glass or jigger, 1.5 oz pours)", skill:"Attention to Detail" },
+        { t:"Ice scoop used and glassware clean", skill:"Attention to Detail" },
+        { t:"Cocktail napkin or coaster offered with the drink", skill:"Attention to Detail" },
+        { t:"ID checked for any guest appearing under the age of 30", skill:"Professionalism & Appearance" },
+        { t:"Another round was proactively suggested as the drink neared empty", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"Bartender addressed the guest by name when paying by card or room charge", skill:"Communication Clarity" },
+        { t:"Transaction recorded immediately, with the cash drawer kept closed between sales", skill:"Professionalism & Appearance" },
+      ]},
+      { key:"cf_food", name:"Food Quality (35%)", pillar:"food", questions:[
+        { t:"Food looked fresh, appealing and neatly presented", skill:"Attention to Detail" },
+        { t:"Food matched the menu description or what the team member described", skill:"Attention to Detail" },
+        { t:"Hot items were served hot and cold items cold", skill:"Attention to Detail" },
+        { t:"Food was flavorful and properly prepared", skill:"Attention to Detail" },
+        { t:"Portion was appropriate for the price", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"Packaging or tray presentation was neat, with utensils, napkins and condiments provided", skill:"Attention to Detail" },
+        { t:"The order was complete and exactly as requested", skill:"Attention to Detail" },
+        { t:"Item was a fair value for the price paid", skill:"Guest Engagement & Hospitality Mindset" },
+      ]},
+      { key:"cf_speed", name:"Speed & Accuracy (20%)", pillar:"speed", questions:[
+        { t:"Time in line before ordering was 5 minutes or less (10 minutes or less during the lunch/dinner rush)", skill:"Time Management" },
+        { t:"The line kept moving and the team managed the queue", skill:"Time Management" },
+        { t:"The guest was told the expected wait, or a number/tracker/name call was used", skill:"Communication Clarity" },
+        { t:"Pre-assembled item (slice, pre-made bowl) was ready within 5 minutes of ordering (N/A if made-to-order)", skill:"Time Management" },
+        { t:"Made-to-order item was ready within 12 minutes of ordering (N/A if pre-assembled)", skill:"Time Management" },
+        { t:"Total time from joining the line to food in hand was 15 minutes or less (20 minutes or less during the rush)", skill:"Time Management" },
+        { t:"The ticket and tray matched what was ordered", skill:"Attention to Detail" },
+      ]},
+      { key:"cf_env", name:"Environment (15%)", pillar:"env", questions:[
+        { t:"Signage and menu boards were clean, accurate and readable", skill:"Attention to Detail" },
+        { t:"Counters, registers and service areas were clean and tidy", skill:"Attention to Detail" },
+        { t:"Food displays, steam tables or cases were clean, organized and stocked", skill:"Attention to Detail" },
+        { t:"Seating and tables nearby were clean and bussed", skill:"Attention to Detail" },
+        { t:"Floors were clean and free of hazards", skill:"Attention to Detail" },
+        { t:"Condiment area was clean, stocked and presentable", skill:"Attention to Detail" },
+        { t:"Trash was contained and not overflowing", skill:"Attention to Detail" },
+        { t:"It was easy to understand where to order, pay and pick up", skill:"Communication Clarity" },
+      ]},
+    ],
+  },
+  coffee_bar: {
+    scale:"cups",
+    weights:{ guest:0.35, product:0.30, speed:0.20, env:0.15 },
+    pillarNames:{ guest:"Guest Experience", product:"Product Quality", speed:"Speed & Flow", env:"Environment" },
+    sections:[
+      { key:"cb_crit", name:"Critical Items (any No caps the rating)", questions:[
+        { t:"Team members washed hands and/or wore gloves when handling food and drinks", skill:"Professionalism & Appearance" },
+        { t:"Drinks and food were handled safely (clean tools, steam wands wiped, correct storage)", skill:"Attention to Detail" },
+        { t:"Cash or card transaction was handled correctly, the amount was accurate and a receipt was offered", skill:"Attention to Detail" },
+        { t:"ID was checked where required (N/A if no age-restricted items)", skill:"Professionalism & Appearance" },
+        { t:"An allergy or ingredient question was answered honestly (N/A if not asked)", skill:"Communication Clarity" },
+      ]},
+      { key:"cb_guest", name:"Guest Experience (35%)", pillar:"guest", questions:[
+        { t:"Guest was acknowledged within 10 seconds, even if the team was busy (a look, a smile or \"be right with you\")", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"Greeting was warm and genuine, with eye contact and a smile", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"Team member offered a recommendation or answered menu questions confidently", skill:"Communication Clarity" },
+        { t:"A size, add-on or pastry pairing was suggested naturally, without being pushy", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"Order was repeated back to the guest to confirm accuracy", skill:"Attention to Detail" },
+        { t:"The guest's name was taken and used at handoff", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"Handoff included eye contact, a smile and a thank-you", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"A customization (milk, temperature, extra shot, sweetness) was handled without attitude", skill:"Adaptability" },
+        { t:"Team members were upbeat, with energy that felt natural and not scripted", skill:"Positive Attitude & Resilience" },
+        { t:"Team members interacted with each other positively", skill:"Teamwork & Collaboration" },
+        { t:"If something went wrong, the team offered to remake or fix it without being asked twice (N/A if nothing went wrong)", skill:"Conflict Resolution" },
+        { t:"The guest received a friendly farewell (\"have a great day\" or similar)", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"The guest felt like a valued guest, not just a transaction", skill:"Guest Engagement & Hospitality Mindset" },
+        { t:"Based on this visit, the guest would return to and/or recommend this outlet", skill:"Guest Engagement & Hospitality Mindset" },
+      ]},
+      { key:"cb_all", name:"Product Quality: All Orders (30%)", pillar:"product", questions:[
+        { t:"The order matched exactly what was requested, including size and customizations", skill:"Attention to Detail" },
+        { t:"Cup was clean and neatly labelled, with the lid, sleeve or straw as appropriate", skill:"Attention to Detail" },
+        { t:"Item was a fair value for the price paid", skill:"Guest Engagement & Hospitality Mindset" },
+      ]},
+      { key:"cb_espresso", name:"Product Quality: Coffee & Espresso (N/A if not ordered)", pillar:"product", questions:[
+        { t:"Hot drink was served hot but not scalding (about 150-165F)", skill:"Attention to Detail" },
+        { t:"Foam, finish and presentation looked right for the drink", skill:"Attention to Detail" },
+        { t:"Taste was balanced, with no burnt, bitter or watery notes", skill:"Attention to Detail" },
+      ]},
+      { key:"cb_blended", name:"Product Quality: Blended Drinks & Smoothies (N/A if not ordered)", pillar:"product", questions:[
+        { t:"Drink was smooth, with no unblended chunks or ice shards", skill:"Attention to Detail" },
+        { t:"Thickness was right and the drink had not separated", skill:"Attention to Detail" },
+        { t:"Ingredients and sweetness matched the description and were well balanced", skill:"Attention to Detail" },
+      ]},
+      { key:"cb_cold", name:"Product Quality: Iced & Cold Drinks (N/A if not ordered)", pillar:"product", questions:[
+        { t:"Drink was properly cold, with a reasonable ice-to-drink ratio", skill:"Attention to Detail" },
+        { t:"Drink was not watered down and tasted as intended", skill:"Attention to Detail" },
+      ]},
+      { key:"cb_pastry", name:"Product Quality: Pastries & Desserts (N/A if not ordered)", pillar:"product", questions:[
+        { t:"Item was fresh, not stale or dry, and looked appealing", skill:"Attention to Detail" },
+        { t:"Pastry case was stocked, tidy and clearly labelled with prices and allergens", skill:"Attention to Detail" },
+        { t:"Item was warmed or plated properly when requested", skill:"Attention to Detail" },
+      ]},
+      { key:"cb_hotfood", name:"Product Quality: Hot Food (N/A if not ordered)", pillar:"product", questions:[
+        { t:"Food was served hot, fresh and as ordered", skill:"Attention to Detail" },
+        { t:"Presentation and packaging were neat", skill:"Attention to Detail" },
+      ]},
+      { key:"cb_speed", name:"Speed & Flow (20%)", pillar:"speed", questions:[
+        { t:"Time in line before ordering was 2 minutes or less (5 minutes or less during the morning rush)", skill:"Time Management" },
+        { t:"Brewed coffee or tea was in the guest's hands within 30 seconds of paying (N/A if not ordered)", skill:"Time Management" },
+        { t:"Espresso, blended or other drink was in the guest's hands within 4 minutes of paying (N/A if not ordered)", skill:"Time Management" },
+        { t:"Manual craft brew was ready within 6 minutes of paying (N/A if not ordered)", skill:"Time Management" },
+        { t:"Hot food was ready within 8 minutes of paying (N/A if not ordered)", skill:"Time Management" },
+        { t:"Mobile or app order was ready when promised (N/A if not used)", skill:"Time Management" },
+        { t:"The team kept the line moving and communicated any delay honestly", skill:"Communication Clarity" },
+      ]},
+      { key:"cb_env", name:"Environment (15%)", pillar:"env", questions:[
+        { t:"Counter, bar and equipment were clean and tidy", skill:"Attention to Detail" },
+        { t:"Condiment and napkin station was stocked and tidy", skill:"Attention to Detail" },
+        { t:"Menu boards and signage were accurate and readable", skill:"Attention to Detail" },
+        { t:"Seating and tables were clean and bussed", skill:"Attention to Detail" },
+        { t:"Trash was contained and not overflowing", skill:"Attention to Detail" },
+        { t:"Music, lighting and atmosphere felt inviting", skill:"Attention to Detail" },
+      ]},
+    ],
+  },
+};
+const COUNTER_TIERS = {
+  stars:[ {key:"s5",label:"5 Stars",min:95}, {key:"s4",label:"4 Stars",min:88}, {key:"s3",label:"3 Stars",min:80}, {key:"s2",label:"2 Stars",min:70}, {key:"s1",label:"1 Star",min:0} ],
+  cups: [ {key:"reserve",label:"Reserve",min:95}, {key:"dark",label:"Dark Roast",min:88}, {key:"medium",label:"Medium Roast",min:80}, {key:"light",label:"Light Roast",min:70}, {key:"below",label:"Below Standard",min:0} ],
+};
+function counterSections(stdKey, outlet){
+  return COUNTER_STANDARDS[stdKey].sections.filter(s=> !s.barOnly || outlet === "Portable Smart Bar");
+}
+/* items: [{ section, pts, max }]. Pillars with no answers are dropped and the
+   remaining weights re-normalised. A failed critical item forces the lowest tier. */
+function counterRatingFromItems(stdKey, items){
+  const std = COUNTER_STANDARDS[stdKey];
+  if (!std) return null;
+  const pillarOf = {};
+  std.sections.forEach(s=>{ if (s.pillar) pillarOf[s.key] = s.pillar; });
+  const acc = {};
+  Object.keys(std.weights).forEach(p=> acc[p] = { pts:0, max:0 });
+  let critFailed = false;
+  items.forEach(it=>{
+    if (/_crit$/.test(it.section)){ if (it.max > 0 && it.pts < it.max) critFailed = true; return; }
+    const p = pillarOf[it.section];
+    if (!p || !it.max) return;
+    acc[p].pts += it.pts; acc[p].max += it.max;
+  });
+  let wsum = 0, total = 0;
+  const pillars = {};
+  Object.keys(acc).forEach(p=>{
+    const pct = acc[p].max ? acc[p].pts / acc[p].max * 100 : null;
+    pillars[p] = pct === null ? null : Math.round(pct*10)/10;
+    if (pct !== null){ total += pct * std.weights[p]; wsum += std.weights[p]; }
+  });
+  if (!wsum) return null;
+  const weighted = total / wsum;
+  const tiers = COUNTER_TIERS[std.scale];
+  const tier = critFailed ? tiers[tiers.length-1] : tiers.find(t => weighted >= t.min);
+  return { scale:std.scale, pillars, weighted:Math.round(weighted*10)/10, tier:tier.key,
+           label: tier.label + (critFailed ? " (critical item failed)" : ""), critFailed };
+}
+function counterRatingFromState(){
+  const per = {};
+  Object.values(currentState).forEach(q=>{
+    if (q.answer === null || q.answer === undefined || q.answer === 'na') return;
+    const e = per[q.section] || (per[q.section] = { section:q.section, pts:0, max:0 });
+    e.max += 1;
+    if (q.answer === 'yes') e.pts += 1;
+  });
+  return counterRatingFromItems(currentStandard, Object.values(per));
+}
+function counterRatingFromRecord(r){
+  if (!COUNTER_STANDARDS[r.standard]) return null;
+  if (r.rating && r.rating.tier) return r.rating;
+  return counterRatingFromItems(r.standard, (r.sections||[]).map(s=>({ section:s.key, pts:s.points||0, max:s.max||0 })));
+}
+function counterPillarText(rt, stdKey){
+  const letters = { guest:"G", food:"F", product:"P", speed:"S", env:"E" };
+  return Object.keys(COUNTER_STANDARDS[stdKey].weights).map(p=> letters[p] + " " + (rt.pillars[p]===null ? "—" : Math.round(rt.pillars[p]))).join(" / ");
+}
+/* Wait times from the three visit timestamps (HH:MM), in minutes. */
+function minutesBetween(a, b){
+  if (!a || !b) return null;
+  const [ah, am] = a.split(":").map(Number), [bh, bm] = b.split(":").map(Number);
+  let d = (bh*60 + bm) - (ah*60 + am);
+  if (d < 0) d += 24*60;
+  return d;
+}
+function updateTiming(){
+  const line = document.getElementById('f-tline').value, pay = document.getElementById('f-tpay').value, recv = document.getElementById('f-trecv').value;
+  const inLine = minutesBetween(line, pay), afterPay = minutesBetween(pay, recv), total = minutesBetween(line, recv);
+  const fmt = v => v === null ? "—" : v + " min";
+  document.getElementById('timingSummary').textContent = "Time in line: " + fmt(inLine) + "  ·  Paid to received: " + fmt(afterPay) + "  ·  Total: " + fmt(total) + "  (compare with the Speed section standards)";
+}
+
 const OUTLET_STANDARD = {
-  "Pronto":"quick_service","Agave":"quick_service","American Classics":"quick_service",
-  "Pechanga Fried Chicken":"quick_service","Cafe Cocoa's":"quick_service","Caf\u00e9 Cocoa's":"quick_service",
-  "Little Wok":"quick_service","Blends":"quick_service","Portable Smart Bar":"quick_service",
+  "Pronto":"food_court","Agave":"food_court","American Classics":"food_court",
+  "Pechanga Fried Chicken":"food_court","Cafe Cocoa's":"coffee_bar","Caf\u00e9 Cocoa's":"coffee_bar",
+  "Little Wok":"food_court","Blends":"coffee_bar","Portable Smart Bar":"food_court",
   "Great Oak Steakhouse":"great_oak","Pisano's Italiano":"fine_dining",
   "Umi Sushi":"umi_sushi",
   "1882 Cantina":"cantina","Kelsey's":"kelseys","Journey's End":"casual_dining",
@@ -2050,7 +2295,9 @@ function buildSections(outlet){
   const standardKey = OUTLET_STANDARD[outlet] || "quick_service";
   currentStandard = standardKey;
 
-  if (standardKey === "quick_service"){
+  if (COUNTER_STANDARDS[standardKey]){
+    counterSections(standardKey, outlet).forEach(section=> buildBinarySectionPanel(section, container));
+  } else if (standardKey === "quick_service"){
     const showBar = outlet === "Portable Smart Bar";
     SECTION_TEMPLATE.forEach(section=>{
       if (section.barOnly && !showBar) return;
@@ -2115,8 +2362,13 @@ function onOutletChange(){
   document.getElementById('areaFocusSushiOpt').style.display = (standardKey === "umi_sushi") ? "" : "none";
   document.getElementById('f-areafocus').value = "Full Visit";
   const subEl = document.getElementById('outletSub');
-  if (standardKey === "quick_service"){
-    subEl.textContent = "Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.";
+  document.getElementById('timingFields').style.display = COUNTER_STANDARDS[standardKey] ? "grid" : "none";
+  if (standardKey === "food_court"){
+    subEl.textContent = "Food Court standard \u2014 answer Yes, No or N/A. Guest Experience 30%, Food 35%, Speed 20%, Environment 15%; rated 1-5 Stars. A No on any Critical Item caps the rating. Record the three times below to check the wait standards.";
+  } else if (standardKey === "coffee_bar"){
+    subEl.textContent = "Coffee Bar standard \u2014 answer Yes, No or N/A (mark N/A for product types you did not order). Guest Experience 35%, Product 30%, Speed 20%, Environment 15%; rated by Roast level. A No on any Critical Item caps the rating. Record the three times below to check the wait standards.";
+  } else if (standardKey === "quick_service"){
+    subEl.textContent = "Select an outlet to begin. Dining outlets use the AAA Diamond guidelines; the Food Court and Coffee Bar outlets have their own rating scales.";
   } else if (standardKey === "fine_dining"){
     subEl.textContent = "Evaluated against the Forbes Travel Guide / AAA 4 Diamond fine dining standard \u2014 answer Yes, No or N/A for each question.";
   } else if (standardKey === "great_oak"){
@@ -2164,6 +2416,10 @@ function recalcSectionScore(sectionKey){
 }
 
 function diamondSuffix(pillarsOnly){
+  if (COUNTER_STANDARDS[currentStandard]){
+    const rt = counterRatingFromState();
+    return rt ? " \u00b7 " + rt.label + " (" + counterPillarText(rt, currentStandard) + ")" : "";
+  }
   const d = diamondFromState();
   return d ? (pillarsOnly ? " " : " · " + d.label + " ") + "(F " + (d.food===null?"—":Math.round(d.food)) + " / S " + (d.service===null?"—":Math.round(d.service)) + " / V " + (d.vibe===null?"—":Math.round(d.vibe)) + ")" : "";
 }
@@ -2204,6 +2460,7 @@ function submitEvaluation(){
   const target = OUTLET_TARGET_TIER[outlet] || null;
   const templateSections = std
     ? std.sections
+    : COUNTER_STANDARDS[standardKey] ? counterSections(standardKey, outlet)
     : SECTION_TEMPLATE.filter(s => !s.barOnly || outlet === "Portable Smart Bar");
 
   const sections = templateSections.map(s=>{
@@ -2240,6 +2497,17 @@ function submitEvaluation(){
     actionPlan: { signed: false, signedDate: "", notes: "" },
     createdAt: Date.now()
   };
+
+  if (COUNTER_STANDARDS[standardKey]){
+    delete record.diamond;
+    record.rating = counterRatingFromState();
+    record.lineTime = document.getElementById('f-tline').value;
+    record.payTime = document.getElementById('f-tpay').value;
+    record.receivedTime = document.getElementById('f-trecv').value;
+    record.waitInLineMin = minutesBetween(record.lineTime, record.payTime);
+    record.waitAfterPayMin = minutesBetween(record.payTime, record.receivedTime);
+    record.waitTotalMin = minutesBetween(record.lineTime, record.receivedTime);
+  }
 
   if (std){
     if (target) record.targetTier = target;
@@ -2284,7 +2552,10 @@ function resetForm(){
   document.getElementById('f-overallcomments').value = "";
   document.getElementById('areaFocusField').style.display = "none";
   document.getElementById('f-areafocus').value = "Full Visit";
-  document.getElementById('outletSub').textContent = "Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.";
+  ['f-tline','f-tpay','f-trecv'].forEach(id=>{ document.getElementById(id).value = ""; });
+  document.getElementById('timingFields').style.display = "none";
+  updateTiming();
+  document.getElementById('outletSub').textContent = "Select an outlet to begin. Dining outlets use the AAA Diamond guidelines; the Food Court and Coffee Bar outlets have their own rating scales.";
   buildSections("");
 }
 
@@ -2415,6 +2686,8 @@ function renderHistory(){
 }
 
 function diamondCellHtml(r){
+  const cr = counterRatingFromRecord(r);
+  if (cr) return `<span title="${counterPillarText(cr, r.standard)} \u00b7 weighted ${cr.weighted}%">${cr.label}</span>`;
   const d = diamondFromRecord(r);
   if (!d) return '&mdash;';
   return `<span title="Food ${d.food===null?'\u2014':Math.round(d.food)}% \u00b7 Service ${d.service===null?'\u2014':Math.round(d.service)}% \u00b7 Vibe ${d.vibe===null?'\u2014':Math.round(d.vibe)}% \u00b7 weighted ${d.weighted}%">${d.label}</span>`;
@@ -3214,6 +3487,15 @@ function openModal(id){
       `</div>`;
   }
 
+  const crt = counterRatingFromRecord(r);
+  if (crt){
+    const pn = COUNTER_STANDARDS[r.standard].pillarNames, pw = COUNTER_STANDARDS[r.standard].weights;
+    html += `<div class="rpt-section-title">Rating</div><div style="margin-bottom:6px;"><span class="role-chip"><b>${crt.label}</b> (weighted ${crt.weighted}%)</span> ` +
+      Object.keys(pw).map(k=> `<span class="role-chip">${pn[k]} (${Math.round(pw[k]*100)}%): <b>${crt.pillars[k]===null?'\u2014':Math.round(crt.pillars[k])+'%'}</b></span>`).join(" ") + `</div>`;
+    if (r.waitTotalMin !== undefined && r.waitTotalMin !== null){
+      html += `<div style="font-size:12.5px;color:#6a6552;margin-bottom:6px;">Time in line: ${r.waitInLineMin===null?'\u2014':r.waitInLineMin+' min'} \u00b7 Paid to received: ${r.waitAfterPayMin===null?'\u2014':r.waitAfterPayMin+' min'} \u00b7 Total: ${r.waitTotalMin} min</div>`;
+    }
+  }
   const dia = diamondFromRecord(r);
   if (dia){
     html += `<div class="rpt-section-title">AAA Diamond</div><div style="margin-bottom:6px;"><span class="role-chip"><b>${dia.label}</b> (weighted ${dia.weighted}%)</span> <span class="role-chip">Food (50%): <b>${dia.food===null?'\u2014':Math.round(dia.food)+'%'}</b></span> <span class="role-chip">Service (35%): <b>${dia.service===null?'\u2014':Math.round(dia.service)+'%'}</b></span> <span class="role-chip">Vibe (15%): <b>${dia.vibe===null?'\u2014':Math.round(dia.vibe)+'%'}</b></span></div>`;
@@ -3369,6 +3651,11 @@ function downloadPDF(id){
   doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
   const bannerRight = isScale ? (bandLabel(r.actionKey) + "  (" + r.percent + "%)") : (bandLabel(r.actionKey) + "  (" + r.points + "/" + r.max + " points)");
   doc.text(bannerRight, marginX+95, y+24);
+  const crt = counterRatingFromRecord(r);
+  if (crt){
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(255,255,255);
+    doc.text("Rating: " + crt.label + "  (" + counterPillarText(crt, r.standard) + ")", marginX+95, y+36);
+  }
   const dia = diamondFromRecord(r);
   if (dia){
     doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(255,255,255);
