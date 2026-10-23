@@ -1636,17 +1636,18 @@ function diamondFromItems(items){
   return { food:out.food, service:out.service, vibe:out.vibe, weighted:Math.round(weighted*10)/10, tier:tier.key, label:tier.label };
 }
 /* Works for both live state and saved records, so history gets a rating too. */
+function isScaleRecord(r){ return !!STANDARDS[r.standard] && r.scoreType !== "binary"; }
 function diamondFromRecord(r){
   if (!r || !r.sections) return null;
   if (r.diamond && r.diamond.tier) return r.diamond;
-  const scale = !!STANDARDS[r.standard];
+  const scale = isScaleRecord(r);
   return diamondFromItems(r.sections.map(s=>{
     if (scale) return { section:s.key, pts:(s.avg||0)*(s.count||0), max:5*(s.count||0) };
     return { section:s.key, pts:s.points||0, max:s.max||0 };
   }));
 }
 function diamondFromState(){
-  const scale = currentStandard !== "quick_service";
+  const scale = false;
   const per = {};
   Object.values(currentState).forEach(q=>{
     if (q.answer === null || q.answer === undefined || q.answer === 'na') return;
@@ -1840,7 +1841,7 @@ function buildSections(outlet){
       buildBinarySectionPanel(section, container);
     });
   } else {
-    STANDARDS[standardKey].sections.forEach(section=> buildScaleSectionPanel(section, container));
+    STANDARDS[standardKey].sections.forEach(section=> buildBinarySectionPanel(section, container));
   }
   recalcLiveScore();
 }
@@ -1848,9 +1849,10 @@ function buildSections(outlet){
 function buildBinarySectionPanel(section, container){
   const panel = document.createElement('div');
   panel.className = "panel section-block";
+  const roleTag = section.role ? ` <span class="role-chip">${section.role}</span>` : "";
   panel.innerHTML = `
     <div class="section-head">
-      <h3>${section.name}</h3>
+      <h3>${section.name}${roleTag}</h3>
       <span class="section-score" id="score-${section.key}">0/0</span>
     </div>
     <div id="qwrap-${section.key}"></div>
@@ -1884,44 +1886,6 @@ function buildBinarySectionPanel(section, container){
   });
 }
 
-function buildScaleSectionPanel(section, container){
-  const panel = document.createElement('div');
-  panel.className = "panel section-block";
-  const roleTag = section.role ? ` <span class="role-chip">${section.role}</span>` : "";
-  panel.innerHTML = `
-    <div class="section-head">
-      <h3>${section.name}${roleTag}</h3>
-      <span class="section-score" id="score-${section.key}">\u2014 /5</span>
-    </div>
-    <div id="qwrap-${section.key}"></div>
-    <div class="field" style="margin-top:14px;">
-      <label>${section.name} Comments</label>
-      <textarea id="comment-${section.key}" placeholder="Narrative detail for this section&hellip;"></textarea>
-    </div>
-  `;
-  container.appendChild(panel);
-  const qwrap = panel.querySelector(`#qwrap-${section.key}`);
-  section.questions.forEach((q, idx)=>{
-    const qid = `${section.key}-${idx}`;
-    currentState[qid] = { answer: null, skill: q.skill, section: section.key, text: q.t, note: "" };
-    const row = document.createElement('div');
-    row.className = "qrow";
-    const btns = [1,2,3,4,5].map(n=>`<button id="btn-${qid}-${n}" onclick="setScaleAnswer('${qid}','${section.key}',${n})">${n}</button>`).join("")
-      + `<button id="btn-${qid}-na" class="na-btn" onclick="setScaleAnswer('${qid}','${section.key}','na')">N/A</button>`;
-    row.innerHTML = `
-      <div>
-        <div class="qtext">${q.t}</div>
-        <div class="qtag">${q.skill}</div>
-        <div class="note-line" id="note-wrap-${qid}" style="display:none;">
-          <input type="text" placeholder="What did they say/do? (optional quote or note)" oninput="setNote('${qid}', this.value)">
-        </div>
-      </div>
-      <div class="scale-btns">${btns}</div>
-    `;
-    qwrap.appendChild(row);
-  });
-}
-
 function onOutletChange(){
   const outlet = document.getElementById('f-outlet').value;
   const standardKey = OUTLET_STANDARD[outlet] || "quick_service";
@@ -1933,19 +1897,19 @@ function onOutletChange(){
   if (standardKey === "quick_service"){
     subEl.textContent = "Every outlet is evaluated as a quick-service AAA 4 Diamond experience. Select the Portable Smart Bar to add the bar service module.";
   } else if (standardKey === "fine_dining"){
-    subEl.textContent = "Evaluated against the Forbes Travel Guide / AAA 4 Diamond fine dining standard \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+    subEl.textContent = "Evaluated against the Forbes Travel Guide / AAA 4 Diamond fine dining standard \u2014 answer Yes, No or N/A for each question.";
   } else if (standardKey === "great_oak"){
-    subEl.textContent = "Fine dining standard plus a dedicated Bar Service section \u2014 scored 1-5 per question (or N/A if it doesn't apply). Use Area Evaluated if the guest dined in the dining room or at the bar.";
+    subEl.textContent = "Fine dining standard plus a dedicated Bar Service section \u2014 answer Yes, No or N/A for each question. Use Area Evaluated if the guest dined in the dining room or at the bar.";
   } else if (standardKey === "umi_sushi"){
-    subEl.textContent = "Fine dining standard plus dedicated Sushi Bar and Bar Service sections \u2014 scored 1-5 per question (or N/A if it doesn't apply). Use Area Evaluated if this visit focused on one area.";
+    subEl.textContent = "Fine dining standard plus dedicated Sushi Bar and Bar Service sections \u2014 answer Yes, No or N/A for each question. Use Area Evaluated if this visit focused on one area.";
   } else if (standardKey === "cantina"){
-    subEl.textContent = "Casual dining standard plus a dedicated Cantina Bar section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+    subEl.textContent = "Casual dining standard plus a dedicated Cantina Bar section \u2014 answer Yes, No or N/A for each question.";
   } else if (standardKey === "kelseys"){
-    subEl.textContent = "Casual dining standard plus a dedicated Sports Bar Experience section \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+    subEl.textContent = "Casual dining standard plus a dedicated Sports Bar Experience section \u2014 answer Yes, No or N/A for each question.";
   } else if (standardKey === "casual_dining"){
-    subEl.textContent = "Evaluated against the casual dining standard \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+    subEl.textContent = "Evaluated against the casual dining standard \u2014 answer Yes, No or N/A for each question.";
   } else if (standardKey === "asian_dining"){
-    subEl.textContent = "Casual dining standard plus a dedicated Service Style section, including whether the server offered traditional or family-style service \u2014 scored 1-5 per question (or N/A if it doesn't apply).";
+    subEl.textContent = "Casual dining standard plus a dedicated Service Style section, including whether the server offered traditional or family-style service \u2014 answer Yes, No or N/A for each question.";
   }
   buildSections(outlet);
 }
@@ -1965,77 +1929,41 @@ function setAnswer(qid, sectionKey, val){
   recalcLiveScore();
 }
 
-function setScaleAnswer(qid, sectionKey, val){
-  currentState[qid].answer = val;
-  [1,2,3,4,5,'na'].forEach(v=>{
-    document.getElementById(`btn-${qid}-${v}`).classList.remove('sel-1','sel-2','sel-3','sel-4','sel-5','sel-na');
-  });
-  document.getElementById(`btn-${qid}-${val}`).classList.add(typeof val === 'number' ? 'sel-'+val : 'sel-na');
-  document.getElementById(`note-wrap-${qid}`).style.display = (typeof val === 'number' && val<=3) ? 'block' : 'none';
-  recalcSectionScore(sectionKey);
-  recalcLiveScore();
-}
-
 function recalcSectionScore(sectionKey){
   const el = document.getElementById(`score-${sectionKey}`);
   if (!el) return;
-  if (currentStandard === "quick_service"){
-    let pts=0, max=0;
-    Object.values(currentState).forEach(q=>{
-      if (q.section !== sectionKey) return;
-      if (q.answer === 'na' || q.answer === null) return;
-      max += 1;
-      if (q.answer === 'yes') pts += 1;
-    });
-    el.textContent = `${pts}/${max}`;
-  } else {
-    let sum=0, cnt=0;
-    Object.values(currentState).forEach(q=>{
-      if (q.section !== sectionKey) return;
-      if (q.answer === null || q.answer === undefined || q.answer === 'na') return;
-      sum += q.answer; cnt += 1;
-    });
-    el.textContent = cnt ? (sum/cnt).toFixed(1)+' /5' : '\u2014 /5';
-  }
+  let pts=0, max=0;
+  Object.values(currentState).forEach(q=>{
+    if (q.section !== sectionKey) return;
+    if (q.answer === 'na' || q.answer === null) return;
+    max += 1;
+    if (q.answer === 'yes') pts += 1;
+  });
+  el.textContent = `${pts}/${max}`;
 }
 
 function diamondSuffix(){
   const d = diamondFromState();
-  return d ? " \u00b7 " + d.label + " (F " + (d.food===null?"\u2014":Math.round(d.food)) + " / S " + (d.service===null?"\u2014":Math.round(d.service)) + " / V " + (d.vibe===null?"\u2014":Math.round(d.vibe)) + ")" : "";
+  return d ? " · " + d.label + " (F " + (d.food===null?"—":Math.round(d.food)) + " / S " + (d.service===null?"—":Math.round(d.service)) + " / V " + (d.vibe===null?"—":Math.round(d.vibe)) + ")" : "";
 }
 
+/* Every outlet is scored Yes / No / N/A. Fine and casual dining keep their own
+   pass/fail band (bandForScore); quick service keeps the SOP action tiers. */
 function recalcLiveScore(){
-  if (currentStandard === "quick_service"){
-    let pts=0, max=0;
-    Object.values(currentState).forEach(q=>{
-      if (q.answer === 'na' || q.answer === null) return;
-      max += 1;
-      if (q.answer === 'yes') pts += 1;
-    });
-    const pct = max > 0 ? (pts/max*100) : null;
-    document.getElementById('liveScoreNum').textContent = pct===null ? '\u2014' : pct.toFixed(0)+'%';
-    pulseEl(document.getElementById('liveScoreNum'));
-    const action = actionForScore(pct);
-    const pill = document.getElementById('liveActionPill');
-    pill.className = "action-pill " + (action.pillClass||"");
-    pill.textContent = action.label + diamondSuffix();
-    return { pts, max, pct, action, standard: currentStandard };
-  } else {
-    let sum=0, cnt=0;
-    Object.values(currentState).forEach(q=>{
-      if (q.answer === null || q.answer === undefined || q.answer === 'na') return;
-      sum += q.answer; cnt += 1;
-    });
-    const avg = cnt ? sum/cnt : null;
-    const pct = avg===null ? null : (avg/5*100);
-    document.getElementById('liveScoreNum').textContent = avg===null ? '\u2014' : avg.toFixed(2)+' /5';
-    pulseEl(document.getElementById('liveScoreNum'));
-    const action = passFailForScore(pct);
-    const pill = document.getElementById('liveActionPill');
-    pill.className = "action-pill " + (action.pillClass||"");
-    pill.textContent = action.label + diamondSuffix();
-    return { sum, cnt, avg, pct, action, standard: currentStandard };
-  }
+  let pts=0, max=0;
+  Object.values(currentState).forEach(q=>{
+    if (q.answer === 'na' || q.answer === null) return;
+    max += 1;
+    if (q.answer === 'yes') pts += 1;
+  });
+  const pct = max > 0 ? (pts/max*100) : null;
+  document.getElementById('liveScoreNum').textContent = pct===null ? '—' : pct.toFixed(0)+'%';
+  pulseEl(document.getElementById('liveScoreNum'));
+  const action = bandForScore(currentStandard, pct);
+  const pill = document.getElementById('liveActionPill');
+  pill.className = "action-pill " + (action.pillClass||"");
+  pill.textContent = action.label + diamondSuffix();
+  return { pts, max, pct, action, standard: currentStandard };
 }
 
 /* ---------------- SUBMIT ---------------- */
@@ -2047,96 +1975,63 @@ function submitEvaluation(){
 
   const standardKey = OUTLET_STANDARD[outlet] || "quick_service";
   const live = recalcLiveScore();
-  let record;
+  const { pts, max, pct, action } = live;
+  if (max === 0){ toast("Answer at least one question before saving."); return; }
 
-  if (standardKey === "quick_service"){
-    const { pts, max, pct, action } = live;
-    if (max === 0){ toast("Answer at least one question before saving."); return; }
+  const std = STANDARDS[standardKey];
+  const templateSections = std
+    ? std.sections
+    : SECTION_TEMPLATE.filter(s => !s.barOnly || outlet === "Portable Smart Bar");
 
-    const sections = SECTION_TEMPLATE
-      .filter(s => !s.barOnly || outlet === "Portable Smart Bar")
-      .map(s=>{
-        let spts=0, smax=0;
-        const qs = s.questions.map((q,idx)=>{
-          const qid = `${s.key}-${idx}`;
-          const st = currentState[qid];
-          if (st.answer !== 'na' && st.answer !== null){
-            smax += 1;
-            if (st.answer === 'yes') spts += 1;
-          }
-          return { text: q.t, skill: q.skill, answer: st.answer, note: st.note || "" };
-        });
-        return {
-          key: s.key, name: s.name, points: spts, max: smax,
-          comment: document.getElementById(`comment-${s.key}`).value || "",
-          questions: qs
-        };
-      });
-
-    record = {
-      standard: "quick_service",
-      outlet, date,
-      day: document.getElementById('f-day').value,
-      timeIn: document.getElementById('f-timein').value,
-      timeOut: document.getElementById('f-timeout').value,
-      shopperName: document.getElementById('f-shopper').value,
-      teamMembers: document.getElementById('f-teammembers').value,
-      managerOnDuty: document.getElementById('f-manager').value,
-      overallComments: document.getElementById('f-overallcomments').value,
-      points: pts, max: max, percent: Math.round(pct*10)/10,
-      actionKey: action.key, sections, diamond: diamondFromState(),
-      actionPlan: { signed: false, signedDate: "", notes: "" },
-      createdAt: Date.now()
-    };
-  } else {
-    const { avg, pct, action } = live;
-    if (avg === null){ toast("Answer at least one question before saving."); return; }
-
-    const std = STANDARDS[standardKey];
-    const sections = std.sections.map(s=>{
-      let ssum=0, scnt=0;
-      const qs = s.questions.map((q,idx)=>{
-        const qid = `${s.key}-${idx}`;
-        const st = currentState[qid];
-        if (st.answer !== null && st.answer !== undefined && st.answer !== 'na'){ scnt += 1; ssum += st.answer; }
-        return { text: q.t, skill: q.skill, answer: st.answer, note: st.note || "" };
-      });
-      return {
-        key: s.key, name: s.name, role: s.role || "",
-        avg: scnt ? Math.round((ssum/scnt)*100)/100 : null, count: scnt,
-        comment: document.getElementById(`comment-${s.key}`).value || "",
-        questions: qs
-      };
+  const sections = templateSections.map(s=>{
+    let spts=0, smax=0;
+    const qs = s.questions.map((q,idx)=>{
+      const qid = `${s.key}-${idx}`;
+      const st = currentState[qid];
+      if (st.answer !== 'na' && st.answer !== null){
+        smax += 1;
+        if (st.answer === 'yes') spts += 1;
+      }
+      return { text: q.t, skill: q.skill, answer: st.answer, note: st.note || "" };
     });
+    return {
+      key: s.key, name: s.name, role: s.role || "", points: spts, max: smax,
+      comment: document.getElementById(`comment-${s.key}`).value || "",
+      questions: qs
+    };
+  });
 
-    const sectionByKey = {}; sections.forEach(s=> sectionByKey[s.key]=s);
-    const roleRollups = std.roleRollups.map(rr=>{
-      let sum=0, cnt=0;
+  const record = {
+    standard: standardKey,
+    scoreType: "binary",
+    outlet, date,
+    day: document.getElementById('f-day').value,
+    timeIn: document.getElementById('f-timein').value,
+    timeOut: document.getElementById('f-timeout').value,
+    shopperName: document.getElementById('f-shopper').value,
+    teamMembers: document.getElementById('f-teammembers').value,
+    managerOnDuty: document.getElementById('f-manager').value,
+    overallComments: document.getElementById('f-overallcomments').value,
+    points: pts, max: max, percent: Math.round(pct*10)/10,
+    actionKey: action.key, sections, diamond: diamondFromState(),
+    actionPlan: { signed: false, signedDate: "", notes: "" },
+    createdAt: Date.now()
+  };
+
+  if (std){
+    record.areaFocus = (standardKey === "umi_sushi" || standardKey === "great_oak") ? document.getElementById('f-areafocus').value : "";
+    const sectionByKey = {}; sections.forEach(sec=> sectionByKey[sec.key]=sec);
+    // Role roll-ups keep the 0-5 "avg" shape (yes-rate x 5) so Restaurant Insight
+    // charts read old 1-5 evaluations and new Yes/No ones the same way.
+    record.roleRollups = std.roleRollups.map(rr=>{
+      let rp=0, rm=0;
       rr.sections.forEach(skey=>{
         const sec = sectionByKey[skey];
-        (sec ? sec.questions : []).forEach(q=>{
-          if (q.answer !== null && q.answer !== undefined && q.answer !== 'na'){ sum += q.answer; cnt += 1; }
-        });
+        if (sec){ rp += sec.points; rm += sec.max; }
       });
-      return { label: rr.label, avg: cnt ? Math.round((sum/cnt)*100)/100 : null };
+      return { label: rr.label, avg: rm ? Math.round(rp/rm*5*100)/100 : null, points: rp, max: rm };
     });
-
-    record = {
-      standard: standardKey,
-      outlet, date,
-      day: document.getElementById('f-day').value,
-      timeIn: document.getElementById('f-timein').value,
-      timeOut: document.getElementById('f-timeout').value,
-      shopperName: document.getElementById('f-shopper').value,
-      teamMembers: document.getElementById('f-teammembers').value,
-      managerOnDuty: document.getElementById('f-manager').value,
-      areaFocus: (standardKey === "umi_sushi" || standardKey === "great_oak") ? document.getElementById('f-areafocus').value : "",
-      overallComments: document.getElementById('f-overallcomments').value,
-      overallAvg: Math.round(avg*100)/100, percent: Math.round(pct*10)/10,
-      actionKey: action.key, sections, roleRollups, diamond: diamondFromState(),
-      actionPlan: { signed: false, signedDate: "", notes: "" },
-      createdAt: Date.now()
-    };
+    record.overallAvg = Math.round(pct/100*5*100)/100;
   }
 
   if (!firebaseReady){
@@ -2264,7 +2159,7 @@ function renderHistory(){
       const tr = document.createElement('tr');
       tr.onclick = ()=>openModal(r.id);
       const signedText = r.actionKey==='celebrate' ? '&mdash;' : (r.actionPlan && r.actionPlan.signed ? 'Signed' : 'Pending');
-      const scoreText = STANDARDS[r.standard] ? `${r.overallAvg}/5` : `${r.percent}%`;
+      const scoreText = isScaleRecord(r) ? `${r.overallAvg}/5` : `${r.percent}%`;
       tr.innerHTML = `
         <td>${r.date||''}</td>
         <td>${r.outlet||''}${r.areaFocus && r.areaFocus!=='Full Visit' ? ' <span class="standard-badge" style="background:var(--gold-500);color:var(--navy-950);">'+r.areaFocus+'</span>' : ''}</td>
@@ -3065,8 +2960,9 @@ function openModal(id){
   if (!r) return;
   selectedEvalId = id;
   const isFineDining = !!STANDARDS[r.standard];
+  const isScale = isScaleRecord(r);
   document.getElementById('modalOutlet').textContent = r.outlet + (r.areaFocus && r.areaFocus!=='Full Visit' ? ' \u2014 '+r.areaFocus : '');
-  document.getElementById('modalTitle').textContent = isFineDining ? `${r.date}  \u2014  ${r.overallAvg}/5  (${r.percent}%)` : `${r.date}  \u2014  ${r.percent}%`;
+  document.getElementById('modalTitle').textContent = isScale ? `${r.date}  \u2014  ${r.overallAvg}/5  (${r.percent}%)` : `${r.date}  \u2014  ${r.percent}%`;
   const action = bandForScore(r.standard, r.percent);
 
   let html = `<div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:#6a6552;margin-bottom:4px;">
@@ -3078,19 +2974,24 @@ function openModal(id){
 
   if (isFineDining && (r.roleRollups||[]).length){
     html += `<div class="rpt-section-title">Role Roll-Up</div><div style="margin-bottom:6px;">` +
-      r.roleRollups.map(rr=> `<span class="role-chip">${rr.label}: <b>${rr.avg===null?'\u2014':rr.avg.toFixed(1)}/5</b></span>`).join("") +
+      r.roleRollups.map(rr=> `<span class="role-chip">${rr.label}: <b>${rr.avg===null?'\u2014':(isScale ? rr.avg.toFixed(1)+'/5' : Math.round(rr.avg/5*100)+'%')}</b></span>`).join("") +
       `</div>`;
   }
 
+  const dia = diamondFromRecord(r);
+  if (dia){
+    html += `<div class="rpt-section-title">AAA Diamond</div><div style="margin-bottom:6px;"><span class="role-chip"><b>${dia.label}</b> (weighted ${dia.weighted}%)</span> <span class="role-chip">Food (50%): <b>${dia.food===null?'\u2014':Math.round(dia.food)+'%'}</b></span> <span class="role-chip">Service (35%): <b>${dia.service===null?'\u2014':Math.round(dia.service)+'%'}</b></span> <span class="role-chip">Vibe (15%): <b>${dia.vibe===null?'\u2014':Math.round(dia.vibe)+'%'}</b></span></div>`;
+  }
+
   (r.sections||[]).forEach(sec=>{
-    const secHeader = isFineDining
+    const secHeader = isScale
       ? `${sec.name}${sec.role ? ' ('+sec.role+')' : ''} \u2014 ${sec.avg===null||sec.avg===undefined ? '\u2014' : sec.avg.toFixed(1)}/5`
-      : `${sec.name} \u2014 ${sec.points}/${sec.max}`;
+      : `${sec.name}${sec.role ? ' ('+sec.role+')' : ''} \u2014 ${sec.points}/${sec.max}`;
     html += `<div class="rpt-section-title">${secHeader}</div>`;
     sec.questions.forEach(q=>{
       const ans = q.answer;
       let aClass, aText;
-      if (isFineDining){
+      if (isScale){
         if (ans === 'na'){ aClass = 'a-na'; aText = 'N/A'; }
         else if (ans===null||ans===undefined){ aClass = 'a-na'; aText = '\u2014'; }
         else { aClass = ans<=2?'a-no':ans>=4?'a-yes':''; aText = ans+' / 5'; }
@@ -3202,6 +3103,7 @@ function downloadPDF(id){
   }
 
   const isFineDining = !!STANDARDS[r.standard];
+  const isScale = isScaleRecord(r);
   const action = bandForScore(r.standard, r.percent);
 
   // ---- Title ----
@@ -3227,9 +3129,9 @@ function downloadPDF(id){
   doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
   doc.roundedRect(marginX, y, contentW, 40, 3, 3, "F");
   doc.setFont("helvetica","bold"); doc.setFontSize(20); setC(GOLD);
-  doc.text(isFineDining ? (r.overallAvg+"/5") : (r.percent + "%"), marginX+16, y+27);
+  doc.text(isScale ? (r.overallAvg+"/5") : (r.percent + "%"), marginX+16, y+27);
   doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
-  const bannerRight = isFineDining ? (bandLabel(r.actionKey) + "  (" + r.percent + "%)") : (bandLabel(r.actionKey) + "  (" + r.points + "/" + r.max + " points)");
+  const bannerRight = isScale ? (bandLabel(r.actionKey) + "  (" + r.percent + "%)") : (bandLabel(r.actionKey) + "  (" + r.points + "/" + r.max + " points)");
   doc.text(bannerRight, marginX+95, y+24);
   const dia = diamondFromRecord(r);
   if (dia){
@@ -3248,7 +3150,7 @@ function downloadPDF(id){
       doc.setFont("helvetica","bold"); doc.setFontSize(9); setC(NAVY);
       doc.text(rr.label + ":", marginX, y);
       doc.setFont("helvetica","normal"); setC(INK);
-      doc.text(rr.avg===null?"\u2014":rr.avg.toFixed(1)+"/5", marginX+160, y);
+      doc.text(rr.avg===null?"\u2014":(isScale ? rr.avg.toFixed(1)+"/5" : Math.round(rr.avg/5*100)+"%"), marginX+160, y);
       y += 13;
     });
     y += 6;
@@ -3256,11 +3158,11 @@ function downloadPDF(id){
 
   // ---- Sections ----
   (r.sections||[]).forEach(sec=>{
-    const secTitle = isFineDining
+    const secTitle = isScale
       ? sec.name.toUpperCase() + (sec.role ? "  ("+sec.role+")" : "") + "  \u2014  " + (sec.avg===null||sec.avg===undefined?"\u2014":sec.avg.toFixed(1)+"/5")
-      : sec.name.toUpperCase() + "  \u2014  " + sec.points + "/" + sec.max;
+      : sec.name.toUpperCase() + (sec.role ? "  ("+sec.role+")" : "") + "  \u2014  " + sec.points + "/" + sec.max;
     heading(secTitle);
-    sec.questions.forEach(q=> questionRow(q.text, q.skill, q.answer, q.note, isFineDining));
+    sec.questions.forEach(q=> questionRow(q.text, q.skill, q.answer, q.note, isScale));
     if (sec.comment){ y += 2; paragraph(sec.comment, { italic:true, size:9, color:INK }); }
     y += 10;
   });
