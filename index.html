@@ -820,7 +820,7 @@
         <div class="table-scroll">
           <table class="evals">
             <thead>
-              <tr><th>Date</th><th>Outlet</th><th>Shopper</th><th>Score</th><th>Band</th><th>Action Plan</th></tr>
+              <tr><th>Date</th><th>Outlet</th><th>Shopper</th><th>Score</th><th>Band</th><th>AAA Diamond</th><th>Action Plan</th></tr>
             </thead>
             <tbody id="historyTbody"></tbody>
           </table>
@@ -1589,6 +1589,75 @@ function bandForScore(standardKey, pct){
 }
 
 /* =========================================================================
+   AAA DIAMOND DESIGNATION (AAA Restaurant Requirements & Diamond Guidelines)
+   Overall designation = Food 50% + Service 35% + Vibe 15%. AAA does not
+   publish numeric cut-offs, so DIAMOND_TIERS is our own calibration; adjust
+   the min values here to retune. Sections not listed in PILLAR_BY_SECTION
+   (e.g. overallexp) are left out of the Diamond calculation.
+   ========================================================================= */
+const DIAMOND_WEIGHTS = { food:0.50, service:0.35, vibe:0.15 };
+const DIAMOND_TIERS = [
+  { key:"five",     label:"Five Diamond",  min:95, blurb:"Leading-edge cuisine, ingredients and preparation with extraordinary service and surroundings." },
+  { key:"four",     label:"Four Diamond",  min:85, blurb:"Distinctive fine dining, well-served amid upscale ambience." },
+  { key:"three",    label:"Three Diamond", min:70, blurb:"Trendy food skillfully presented in a remarkable setting." },
+  { key:"approved", label:"Approved",      min:55, blurb:"Noteworthy by meeting the industry-leading standards of AAA inspections." },
+  { key:"below",    label:"Below Approved",min:0,  blurb:"Does not reach the AAA Approved level on this visit." },
+];
+const PILLAR_BY_SECTION = {
+  // Food (50%)
+  culinary:"food", foodbeverage:"food", fb:"food", sushibar:"food",
+  // Service (35%)
+  reservation:"service", arrival:"service", staffappearance:"service", servicestandards:"service",
+  beverageprogram:"service", problemresolution:"service", payment:"service", barservice:"service",
+  cantinabar:"service", sportsbar:"service", servicestyle:"service",
+  speed:"service", guestservice:"service", bar:"service", team:"service",
+  // Vibe (15%)
+  diningroom:"vibe", tablesetting:"vibe", ambiance:"vibe", facility:"vibe",
+};
+/* items: [{ section, pts, max }] with pts/max already N/A-adjusted. Pillars with
+   no answered questions are dropped and the remaining weights re-normalised. */
+function diamondFromItems(items){
+  const acc = { food:{pts:0,max:0}, service:{pts:0,max:0}, vibe:{pts:0,max:0} };
+  items.forEach(it=>{
+    const p = PILLAR_BY_SECTION[it.section];
+    if (!p || !it.max) return;
+    acc[p].pts += it.pts; acc[p].max += it.max;
+  });
+  let wsum = 0, total = 0;
+  const out = {};
+  Object.keys(acc).forEach(p=>{
+    const pct = acc[p].max ? acc[p].pts / acc[p].max * 100 : null;
+    out[p] = pct === null ? null : Math.round(pct*10)/10;
+    if (pct !== null){ total += pct * DIAMOND_WEIGHTS[p]; wsum += DIAMOND_WEIGHTS[p]; }
+  });
+  if (!wsum) return null;
+  const weighted = total / wsum;
+  const tier = DIAMOND_TIERS.find(t => weighted >= t.min);
+  return { food:out.food, service:out.service, vibe:out.vibe, weighted:Math.round(weighted*10)/10, tier:tier.key, label:tier.label };
+}
+/* Works for both live state and saved records, so history gets a rating too. */
+function diamondFromRecord(r){
+  if (!r || !r.sections) return null;
+  if (r.diamond && r.diamond.tier) return r.diamond;
+  const scale = !!STANDARDS[r.standard];
+  return diamondFromItems(r.sections.map(s=>{
+    if (scale) return { section:s.key, pts:(s.avg||0)*(s.count||0), max:5*(s.count||0) };
+    return { section:s.key, pts:s.points||0, max:s.max||0 };
+  }));
+}
+function diamondFromState(){
+  const scale = currentStandard !== "quick_service";
+  const per = {};
+  Object.values(currentState).forEach(q=>{
+    if (q.answer === null || q.answer === undefined || q.answer === 'na') return;
+    const e = per[q.section] || (per[q.section] = { section:q.section, pts:0, max:0 });
+    e.max += scale ? 5 : 1;
+    e.pts += scale ? q.answer : (q.answer === 'yes' ? 1 : 0);
+  });
+  return diamondFromItems(Object.values(per));
+}
+
+/* =========================================================================
    STATE
    ========================================================================= */
 let currentRole = null; // 'shopper' | 'outlet' | 'director'
@@ -1930,6 +1999,11 @@ function recalcSectionScore(sectionKey){
   }
 }
 
+function diamondSuffix(){
+  const d = diamondFromState();
+  return d ? " \u00b7 " + d.label + " (F " + (d.food===null?"\u2014":Math.round(d.food)) + " / S " + (d.service===null?"\u2014":Math.round(d.service)) + " / V " + (d.vibe===null?"\u2014":Math.round(d.vibe)) + ")" : "";
+}
+
 function recalcLiveScore(){
   if (currentStandard === "quick_service"){
     let pts=0, max=0;
@@ -1944,7 +2018,7 @@ function recalcLiveScore(){
     const action = actionForScore(pct);
     const pill = document.getElementById('liveActionPill');
     pill.className = "action-pill " + (action.pillClass||"");
-    pill.textContent = action.label;
+    pill.textContent = action.label + diamondSuffix();
     return { pts, max, pct, action, standard: currentStandard };
   } else {
     let sum=0, cnt=0;
@@ -1959,7 +2033,7 @@ function recalcLiveScore(){
     const action = passFailForScore(pct);
     const pill = document.getElementById('liveActionPill');
     pill.className = "action-pill " + (action.pillClass||"");
-    pill.textContent = action.label;
+    pill.textContent = action.label + diamondSuffix();
     return { sum, cnt, avg, pct, action, standard: currentStandard };
   }
 }
@@ -2010,7 +2084,7 @@ function submitEvaluation(){
       managerOnDuty: document.getElementById('f-manager').value,
       overallComments: document.getElementById('f-overallcomments').value,
       points: pts, max: max, percent: Math.round(pct*10)/10,
-      actionKey: action.key, sections,
+      actionKey: action.key, sections, diamond: diamondFromState(),
       actionPlan: { signed: false, signedDate: "", notes: "" },
       createdAt: Date.now()
     };
@@ -2059,7 +2133,7 @@ function submitEvaluation(){
       areaFocus: (standardKey === "umi_sushi" || standardKey === "great_oak") ? document.getElementById('f-areafocus').value : "",
       overallComments: document.getElementById('f-overallcomments').value,
       overallAvg: Math.round(avg*100)/100, percent: Math.round(pct*10)/10,
-      actionKey: action.key, sections, roleRollups,
+      actionKey: action.key, sections, roleRollups, diamond: diamondFromState(),
       actionPlan: { signed: false, signedDate: "", notes: "" },
       createdAt: Date.now()
     };
@@ -2197,6 +2271,7 @@ function renderHistory(){
         <td>${r.shopperName||'&mdash;'}</td>
         <td><span class="score-chip ${action.chip}">${scoreText}</span></td>
         <td>${bandLabel(r.actionKey)}</td>
+        <td>${diamondCellHtml(r)}</td>
         <td>${signedText}</td>
       `;
       tbody.appendChild(tr);
@@ -2206,6 +2281,12 @@ function renderHistory(){
   renderTrendChart(scoped);
   renderAvgByOutletChart(scoped);
   renderOutcomeChart(scoped);
+}
+
+function diamondCellHtml(r){
+  const d = diamondFromRecord(r);
+  if (!d) return '&mdash;';
+  return `<span title="Food ${d.food===null?'\u2014':Math.round(d.food)}% \u00b7 Service ${d.service===null?'\u2014':Math.round(d.service)}% \u00b7 Vibe ${d.vibe===null?'\u2014':Math.round(d.vibe)}% \u00b7 weighted ${d.weighted}%">${d.label}</span>`;
 }
 
 function bandLabel(key){
@@ -3150,6 +3231,11 @@ function downloadPDF(id){
   doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
   const bannerRight = isFineDining ? (bandLabel(r.actionKey) + "  (" + r.percent + "%)") : (bandLabel(r.actionKey) + "  (" + r.points + "/" + r.max + " points)");
   doc.text(bannerRight, marginX+95, y+24);
+  const dia = diamondFromRecord(r);
+  if (dia){
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(255,255,255);
+    doc.text("AAA Diamond: " + dia.label + "  (Food " + (dia.food===null?"-":Math.round(dia.food)) + "% x50, Service " + (dia.service===null?"-":Math.round(dia.service)) + "% x35, Vibe " + (dia.vibe===null?"-":Math.round(dia.vibe)) + "% x15)", marginX+95, y+36);
+  }
   y += 55;
   paragraph((isFineDining?"Standard":"SOP") + " Guidance: " + (action.guidance||""), { size:8.8, italic:true, color:GRAY });
   y += 8;
