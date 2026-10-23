@@ -811,8 +811,11 @@
             <option value="">All Score Bands</option>
             <option value="celebrate">100% &mdash; Celebrate</option>
             <option value="acceptable">92&ndash;99% &mdash; Acceptable</option>
-            <option value="pass">Pass (Fine Dining/Casual/Sushi)</option>
-            <option value="fail">Fail (Fine Dining/Casual/Sushi)</option>
+            <option value="dia_five">Five Diamond (Dining)</option>
+            <option value="dia_four">Four Diamond (Dining)</option>
+            <option value="dia_three">Three Diamond (Dining)</option>
+            <option value="dia_approved">Approved (Dining)</option>
+            <option value="dia_below">Below Approved (Dining)</option>
             <option value="verbal">85&ndash;91% &mdash; Verbal Warning</option>
             <option value="written">&le;84% &mdash; Written Warning</option>
           </select>
@@ -1255,8 +1258,8 @@ const SECTION_TEMPLATE = [
 
 /* =========================================================================
    FINE DINING STANDARD (Forbes Travel Guide + AAA 4 Diamond)
-   1-5 scale per question ("enter 5 if N/A"), section averages, role roll-ups,
-   Pass/Fail at 80%. Shared by Great Oak Steakhouse, Pisano's Italiano, and
+   Yes/No/N/A per question, section scores, role roll-ups, banded by AAA
+   Diamond designation. Shared by Great Oak Steakhouse, Pisano's Italiano, and
    (with two extra sections) Umi Sushi.
    ========================================================================= */
 const FINE_DINING_SECTIONS = [
@@ -1417,8 +1420,7 @@ const GREAT_OAK_ROLE_ROLLUPS = FINE_DINING_ROLE_ROLLUPS.concat([
 
 /* =========================================================================
    CASUAL DINING STANDARD
-   Lighter-weight table-service standard (1-5 scale, "enter 5 if N/A", same
-   as fine dining) for full-service concepts that are more casual than a
+   Lighter-weight table-service standard (Yes/No/N/A, same as fine dining) for full-service concepts that are more casual than a
    Forbes/AAA 4 Diamond restaurant. Shared by 1882 Cantina and Kelsey's,
    each with its own added bar module.
    ========================================================================= */
@@ -1574,18 +1576,9 @@ function actionForScore(pct){
     guidance:"Unacceptable score \u2014 remedy immediately. Issue a written warning to the individuals named, counsel them, and complete an action plan. Report status to the Assistant Director of F&B and involve the Training Manager as needed." };
 }
 
-/* Fine dining / Umi Sushi: simple Pass/Fail at 80%, per the Forbes/AAA
-   4 Diamond standard this was built from. */
-function passFailForScore(pct){
-  if (pct === null) return { key:"none", label:"Answer questions to calculate", pillClass:"", chip:"" };
-  if (pct >= 80) return { key:"pass", label:pct.toFixed(0)+"% \u2014 PASS", pillClass:"pill-green", chip:"chip-green",
-    guidance:"Meets the Forbes Travel Guide / AAA 4 Diamond standard. Review the report with the team and highlight what to keep doing." };
-  return { key:"fail", label:pct.toFixed(0)+"% \u2014 FAIL", pillClass:"pill-red", chip:"chip-red",
-    guidance:"Below the 80% threshold for this standard. Build an action plan for the sections and roles that scored lowest, and review with the team." };
-}
 /* Unified dispatcher so shared UI code doesn't need to branch everywhere. */
-function bandForScore(standardKey, pct){
-  return STANDARDS[standardKey] ? passFailForScore(pct) : actionForScore(pct);
+function bandForScore(standardKey, pct, diamond){
+  return STANDARDS[standardKey] ? diamondBand(diamond) : actionForScore(pct);
 }
 
 /* =========================================================================
@@ -1603,6 +1596,20 @@ const DIAMOND_TIERS = [
   { key:"approved", label:"Approved",      min:55, blurb:"Noteworthy by meeting the industry-leading standards of AAA inspections." },
   { key:"below",    label:"Below Approved",min:0,  blurb:"Does not reach the AAA Approved level on this visit." },
 ];
+/* Dining outlets are rated by their AAA Diamond designation instead of a
+   pass/fail band. The band key is stored as actionKey ("dia_five" ...). */
+const DIAMOND_BAND_STYLE = {
+  five:{pill:"pill-green",chip:"chip-green",guidance:"Five Diamond: leading-edge cuisine, ingredients and preparation with extraordinary service and surroundings. Recognize the whole team and share what is working."},
+  four:{pill:"pill-green",chip:"chip-green",guidance:"Four Diamond: distinctive fine dining, well-served amid upscale ambience. Review the report with the team and highlight what to keep doing."},
+  three:{pill:"pill-amber",chip:"chip-amber",guidance:"Three Diamond: trendy food skillfully presented in a remarkable setting, but below Four Diamond. Review the lowest-scoring pillar with the team and build an action plan."},
+  approved:{pill:"pill-red",chip:"chip-red",guidance:"Approved: meets AAA's baseline standards only. Build an action plan for the lowest-scoring pillar and sections, and review it with the team."},
+  below:{pill:"pill-red",chip:"chip-red",guidance:"Below the AAA Approved level on this visit. Remedy immediately, build an action plan, and involve the Assistant Director of F&B and the Training Manager as needed."},
+};
+function diamondBand(d){
+  if (!d) return { key:"none", label:"Answer questions to calculate", pillClass:"", chip:"" };
+  const st = DIAMOND_BAND_STYLE[d.tier];
+  return { key:"dia_"+d.tier, label:d.label, pillClass:st.pill, chip:st.chip, guidance:st.guidance };
+}
 const PILLAR_BY_SECTION = {
   // Food (50%)
   culinary:"food", foodbeverage:"food", fb:"food", sushibar:"food",
@@ -1942,13 +1949,13 @@ function recalcSectionScore(sectionKey){
   el.textContent = `${pts}/${max}`;
 }
 
-function diamondSuffix(){
+function diamondSuffix(pillarsOnly){
   const d = diamondFromState();
-  return d ? " · " + d.label + " (F " + (d.food===null?"—":Math.round(d.food)) + " / S " + (d.service===null?"—":Math.round(d.service)) + " / V " + (d.vibe===null?"—":Math.round(d.vibe)) + ")" : "";
+  return d ? (pillarsOnly ? " " : " · " + d.label + " ") + "(F " + (d.food===null?"—":Math.round(d.food)) + " / S " + (d.service===null?"—":Math.round(d.service)) + " / V " + (d.vibe===null?"—":Math.round(d.vibe)) + ")" : "";
 }
 
-/* Every outlet is scored Yes / No / N/A. Fine and casual dining keep their own
-   pass/fail band (bandForScore); quick service keeps the SOP action tiers. */
+/* Every outlet is scored Yes / No / N/A. Dining outlets are banded by AAA
+   Diamond designation; quick service keeps the SOP action tiers. */
 function recalcLiveScore(){
   let pts=0, max=0;
   Object.values(currentState).forEach(q=>{
@@ -1959,10 +1966,11 @@ function recalcLiveScore(){
   const pct = max > 0 ? (pts/max*100) : null;
   document.getElementById('liveScoreNum').textContent = pct===null ? '—' : pct.toFixed(0)+'%';
   pulseEl(document.getElementById('liveScoreNum'));
-  const action = bandForScore(currentStandard, pct);
+  const dia = diamondFromState();
+  const action = bandForScore(currentStandard, pct, dia);
   const pill = document.getElementById('liveActionPill');
   pill.className = "action-pill " + (action.pillClass||"");
-  pill.textContent = action.label + diamondSuffix();
+  pill.textContent = action.label + diamondSuffix(!!STANDARDS[currentStandard]);
   return { pts, max, pct, action, standard: currentStandard };
 }
 
@@ -2065,6 +2073,18 @@ function resetForm(){
 }
 
 /* ---------------- LOAD / HISTORY ---------------- */
+/* Older dining evaluations were stored with a pass/fail band. Re-band them by
+   Diamond designation in memory (derived from their saved sections) so the
+   whole app reads them consistently. */
+function normalizeEval(r){
+  if (STANDARDS[r.standard]){
+    const d = diamondFromRecord(r);
+    if (d){ r.diamond = d; r.actionKey = "dia_" + d.tier; }
+  }
+  return r;
+}
+function needsSignoff(r){ return !['celebrate','dia_five','dia_four'].includes(r.actionKey); }
+
 function loadEvaluations(){
   if (!firebaseReady){
     renderHistory();
@@ -2083,7 +2103,7 @@ function loadEvaluations(){
         staffAliasRules = Array.isArray(data.aliases) ? data.aliases : [];
         return;
       }
-      allEvals.push({ id: doc.id, ...data });
+      allEvals.push(normalizeEval({ id: doc.id, ...data }));
     });
     renderHistory();
     renderSkillsInsights();
@@ -2137,8 +2157,8 @@ function renderHistory(){
   const statRow = document.getElementById('statRow');
   const total = scoped.length;
   const avg = total ? (scoped.reduce((a,r)=>a+r.percent,0)/total) : 0;
-  const needsAction = scoped.filter(r=>r.actionKey==='verbal'||r.actionKey==='written'||r.actionKey==='fail').length;
-  const unsigned = scoped.filter(r=> r.actionKey!=='celebrate' && !(r.actionPlan&&r.actionPlan.signed)).length;
+  const needsAction = scoped.filter(r=>['verbal','written','dia_approved','dia_below'].includes(r.actionKey)).length;
+  const unsigned = scoped.filter(r=> needsSignoff(r) && !(r.actionPlan&&r.actionPlan.signed)).length;
   const deltaHtml = rangeFilter ? computeAvgScoreDelta(parseInt(rangeFilter,10), scoped) : "";
   statRow.innerHTML = `
     <div class="stat-card"><div class="k">Total Evaluations</div><div class="v">${total}</div></div>
@@ -2155,10 +2175,10 @@ function renderHistory(){
   } else {
     emptyEl.style.display = "none";
     rows.forEach(r=>{
-      const action = bandForScore(r.standard, r.percent);
+      const action = bandForScore(r.standard, r.percent, diamondFromRecord(r));
       const tr = document.createElement('tr');
       tr.onclick = ()=>openModal(r.id);
-      const signedText = r.actionKey==='celebrate' ? '&mdash;' : (r.actionPlan && r.actionPlan.signed ? 'Signed' : 'Pending');
+      const signedText = !needsSignoff(r) ? '&mdash;' : (r.actionPlan && r.actionPlan.signed ? 'Signed' : 'Pending');
       const scoreText = isScaleRecord(r) ? `${r.overallAvg}/5` : `${r.percent}%`;
       tr.innerHTML = `
         <td>${r.date||''}</td>
@@ -2186,7 +2206,7 @@ function diamondCellHtml(r){
 
 function bandLabel(key){
   return { celebrate:"Celebrate", acceptable:"Acceptable", verbal:"Verbal Warning", written:"Written Warning",
-           pass:"Pass", fail:"Fail" }[key] || "";
+           dia_five:"Five Diamond", dia_four:"Four Diamond", dia_three:"Three Diamond", dia_approved:"Approved", dia_below:"Below Approved" }[key] || "";
 }
 
 function renderTrendChart(scoped){
@@ -2271,8 +2291,8 @@ function renderOutcomeChart(scoped){
   if (!ctx) return;
   const counts = {};
   scoped.forEach(r=>{ counts[r.actionKey] = (counts[r.actionKey]||0) + 1; });
-  const order = ['celebrate','acceptable','pass','verbal','written','fail'];
-  const colors = { celebrate:'#3f8f5f', acceptable:'#6fae87', pass:'#3f8f5f', verbal:'#c98a2c', written:'#b3453f', fail:'#b3453f' };
+  const order = ['celebrate','acceptable','dia_five','dia_four','dia_three','verbal','written','dia_approved','dia_below'];
+  const colors = { celebrate:'#3f8f5f', acceptable:'#6fae87', dia_five:'#2f7a4d', dia_four:'#3f8f5f', dia_three:'#c98a2c', verbal:'#c98a2c', written:'#b3453f', dia_approved:'#b3453f', dia_below:'#7d2a26' };
   const present = order.filter(k=>counts[k]);
   const labels = present.map(k=>bandLabel(k));
   const data = present.map(k=>counts[k]);
@@ -2676,7 +2696,7 @@ function buildStaffRoster(evals){
       p.sumPct += (ev.percent || 0);
       p.roles.add(role);
       p.outlets.add(ev.outlet);
-      p.visits.push({ id: ev.id, date: ev.date, outlet: ev.outlet, pct: ev.percent, role, standard: ev.standard });
+      p.visits.push({ id: ev.id, date: ev.date, outlet: ev.outlet, pct: ev.percent, role, standard: ev.standard, diamond: ev.diamond });
     };
     (ev.teamMembers || '').split(',').forEach(n => addPerson(n, 'Team Member'));
     addPerson(ev.managerOnDuty, 'Manager on Duty');
@@ -2943,7 +2963,7 @@ function openStaffModal(key){
 
   const visitsSorted = person.visits.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
   const html = `<div class="rpt-section-title">Visit History</div>` + visitsSorted.map(v => {
-    const action = bandForScore(v.standard, v.pct);
+    const action = bandForScore(v.standard, v.pct, v.diamond);
     return `<div class="rpt-q" style="cursor:pointer;" onclick="openModal('${v.id}')">
       <span>${v.date || ''} &middot; ${v.outlet} <span class="qtag" style="margin-left:6px;">${v.role}</span></span>
       <span class="score-chip ${action.chip}">${v.pct}%</span>
@@ -2963,7 +2983,7 @@ function openModal(id){
   const isScale = isScaleRecord(r);
   document.getElementById('modalOutlet').textContent = r.outlet + (r.areaFocus && r.areaFocus!=='Full Visit' ? ' \u2014 '+r.areaFocus : '');
   document.getElementById('modalTitle').textContent = isScale ? `${r.date}  \u2014  ${r.overallAvg}/5  (${r.percent}%)` : `${r.date}  \u2014  ${r.percent}%`;
-  const action = bandForScore(r.standard, r.percent);
+  const action = bandForScore(r.standard, r.percent, diamondFromRecord(r));
 
   let html = `<div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:#6a6552;margin-bottom:4px;">
     <div>Shopper: <strong style="color:var(--ink)">${r.shopperName||'\u2014'}</strong></div>
@@ -3011,7 +3031,7 @@ function openModal(id){
     <div style="font-weight:700;font-size:13.5px;margin-bottom:4px;">${isFineDining?'Standard':'SOP'} Guidance &mdash; ${action.label}</div>
     <div style="font-size:12.5px;color:#5a5747;margin-bottom:10px;">${action.guidance||''}</div>`;
 
-  if (r.actionKey !== 'celebrate'){
+  if (needsSignoff(r)){
     html += `<label><input type="checkbox" id="signCheck" ${r.actionPlan&&r.actionPlan.signed?'checked':''} onchange="toggleSigned('${id}', this.checked)"> Reviewed & signed by team member(s) named above</label>
       <textarea id="planNotes" placeholder="Action plan notes / follow-up (training class, work order, coaching date)&hellip;" onblur="saveActionNotes('${id}', this.value)">${r.actionPlan&&r.actionPlan.notes||''}</textarea>`;
   }
@@ -3104,7 +3124,7 @@ function downloadPDF(id){
 
   const isFineDining = !!STANDARDS[r.standard];
   const isScale = isScaleRecord(r);
-  const action = bandForScore(r.standard, r.percent);
+  const action = bandForScore(r.standard, r.percent, diamondFromRecord(r));
 
   // ---- Title ----
   const logoSize = 40;
@@ -3175,7 +3195,7 @@ function downloadPDF(id){
   }
 
   // ---- Action plan ----
-  if (r.actionKey !== 'celebrate'){
+  if (needsSignoff(r)){
     heading("ACTION PLAN & SIGN-OFF");
     paragraph("Signed by team member(s): " + (r.actionPlan && r.actionPlan.signed ? "Yes, on " + (r.actionPlan.signedDate||"") : "Pending"), { bold:true });
     if (r.actionPlan && r.actionPlan.notes){ y += 2; paragraph("Notes: " + r.actionPlan.notes); }
