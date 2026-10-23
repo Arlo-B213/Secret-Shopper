@@ -1546,15 +1546,17 @@ const ASIAN_DINING_ROLE_ROLLUPS = CASUAL_DINING_ROLE_ROLLUPS.concat([
    section list + role roll-up definitions. */
 /* =========================================================================
    AAA DIAMOND GUIDELINES (AAA Restaurant Requirements & Diamond Guidelines)
-   Added to every dining outlet (fine, casual, Asian). Each outlet has a target
+   Added to the fine-dining and Asian-dining outlets (casual dining keeps its existing evaluation). Each outlet has a target
    Diamond tier; every attribute question shows AAA's descriptor for that tier
    and the shopper answers Yes (meets it) / No (falls short) / N/A.
    Quick-service and Food Court outlets do not use these sections.
    ========================================================================= */
 const OUTLET_TARGET_TIER = {
   "Great Oak Steakhouse":"four", "Pisano's Italiano":"four", "Umi Sushi":"four",
-  "1882 Cantina":"three", "Kelsey's":"three", "Journey's End":"three",
   "Bamboo":"three", "Blazing Noodle":"three",
+  // Casual dining (1882 Cantina, Kelsey's, Journey's End) keep their existing
+  // evaluation with no AAA guideline sections or target cap, so they can reach
+  // Four Diamond (or Five) on the absolute DIAMOND_TIERS scale.
 };
 const TIER_LABELS = { approved:"Approved", three:"Three Diamond", four:"Four Diamond", five:"Five Diamond" };
 
@@ -1740,9 +1742,9 @@ const STANDARDS = {
   fine_dining: { scoreType:"scale5", sections: withAaaSections(FINE_DINING_SECTIONS), roleRollups: FINE_DINING_ROLE_ROLLUPS },
   great_oak:   { scoreType:"scale5", sections: withAaaSections(FINE_DINING_SECTIONS.concat(GREAT_OAK_EXTRA_SECTIONS)), roleRollups: GREAT_OAK_ROLE_ROLLUPS },
   umi_sushi:   { scoreType:"scale5", sections: withAaaSections(FINE_DINING_SECTIONS.concat(UMI_EXTRA_SECTIONS)), roleRollups: UMI_ROLE_ROLLUPS },
-  casual_dining:{ scoreType:"scale5", sections: withAaaSections(CASUAL_DINING_SECTIONS), roleRollups: CASUAL_DINING_ROLE_ROLLUPS },
-  cantina:     { scoreType:"scale5", sections: withAaaSections(CASUAL_DINING_SECTIONS.concat(CANTINA_EXTRA_SECTIONS)), roleRollups: CANTINA_ROLE_ROLLUPS },
-  kelseys:     { scoreType:"scale5", sections: withAaaSections(CASUAL_DINING_SECTIONS.concat(KELSEYS_EXTRA_SECTIONS)), roleRollups: KELSEYS_ROLE_ROLLUPS },
+  casual_dining:{ scoreType:"scale5", sections: CASUAL_DINING_SECTIONS, roleRollups: CASUAL_DINING_ROLE_ROLLUPS },
+  cantina:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(CANTINA_EXTRA_SECTIONS), roleRollups: CANTINA_ROLE_ROLLUPS },
+  kelseys:     { scoreType:"scale5", sections: CASUAL_DINING_SECTIONS.concat(KELSEYS_EXTRA_SECTIONS), roleRollups: KELSEYS_ROLE_ROLLUPS },
   asian_dining:{ scoreType:"scale5", sections: withAaaSections(CASUAL_DINING_SECTIONS.concat(ASIAN_DINING_EXTRA_SECTIONS)), roleRollups: ASIAN_DINING_ROLE_ROLLUPS },
 };
 
